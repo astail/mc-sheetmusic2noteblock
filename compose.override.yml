@@ -1,0 +1,8 @@
+# 開発用 override。docker compose up で自動的に読み込まれ、ソース変更が即反映される
+services:
+  app:
+    # pip install 済みの site-packages ではなく、マウントした ./backend/app を import させる
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --app-dir backend
+    volumes:
+      - ./backend/app:/app/backend/app
+      - ./frontend:/app/frontend
