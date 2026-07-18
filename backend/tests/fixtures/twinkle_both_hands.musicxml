@@ -19,15 +19,12 @@
     </scaling>
   </defaults>
   <part-list>
-    <score-part id="P1c0943971ffbcb83b05584292e0ba770">
-      <part-name />
-    </score-part>
-    <score-part id="Pcd492ffe845a732eab23902faa2f6b95">
+    <score-part id="P7da5da70d4d6731ff6dfa937c5c57495">
       <part-name />
     </score-part>
   </part-list>
   <!--=========================== Part 1 ===========================-->
-  <part id="P1c0943971ffbcb83b05584292e0ba770">
+  <part id="P7da5da70d4d6731ff6dfa937c5c57495">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>
@@ -36,9 +33,14 @@
           <beats>4</beats>
           <beat-type>4</beat-type>
         </time>
-        <clef>
+        <staves>2</staves>
+        <clef number="1">
           <sign>G</sign>
           <line>2</line>
+        </clef>
+        <clef number="2">
+          <sign>F</sign>
+          <line>4</line>
         </clef>
       </attributes>
       <direction>
@@ -48,6 +50,7 @@
             <per-minute>100</per-minute>
           </metronome>
         </direction-type>
+        <staff>1</staff>
         <sound tempo="100" />
       </direction>
       <note>
@@ -56,7 +59,9 @@
           <octave>4</octave>
         </pitch>
         <duration>10080</duration>
+        <voice>1</voice>
         <type>quarter</type>
+        <staff>1</staff>
       </note>
       <note>
         <pitch>
@@ -64,7 +69,9 @@
           <octave>4</octave>
         </pitch>
         <duration>10080</duration>
+        <voice>1</voice>
         <type>quarter</type>
+        <staff>1</staff>
       </note>
       <note>
         <pitch>
@@ -72,7 +79,9 @@
           <octave>4</octave>
         </pitch>
         <duration>10080</duration>
+        <voice>1</voice>
         <type>quarter</type>
+        <staff>1</staff>
       </note>
       <note>
         <pitch>
@@ -80,7 +89,44 @@
           <octave>4</octave>
         </pitch>
         <duration>10080</duration>
+        <voice>1</voice>
         <type>quarter</type>
+        <staff>1</staff>
+      </note>
+      <backup>
+        <duration>40320</duration>
+      </backup>
+      <note>
+        <pitch>
+          <step>C</step>
+          <octave>3</octave>
+        </pitch>
+        <duration>40320</duration>
+        <voice>2</voice>
+        <type>whole</type>
+        <staff>2</staff>
+      </note>
+      <note>
+        <chord />
+        <pitch>
+          <step>E</step>
+          <octave>3</octave>
+        </pitch>
+        <duration>40320</duration>
+        <voice>2</voice>
+        <type>whole</type>
+        <staff>2</staff>
+      </note>
+      <note>
+        <chord />
+        <pitch>
+          <step>G</step>
+          <octave>3</octave>
+        </pitch>
+        <duration>40320</duration>
+        <voice>2</voice>
+        <type>whole</type>
+        <staff>2</staff>
       </note>
     </measure>
     <!--========================= Measure 2 ==========================-->
@@ -91,7 +137,9 @@
           <octave>4</octave>
         </pitch>
         <duration>10080</duration>
+        <voice>1</voice>
         <type>quarter</type>
+        <staff>1</staff>
       </note>
       <note>
         <pitch>
@@ -99,7 +147,9 @@
           <octave>4</octave>
         </pitch>
         <duration>10080</duration>
+        <voice>1</voice>
         <type>quarter</type>
+        <staff>1</staff>
       </note>
       <note>
         <pitch>
@@ -107,7 +157,44 @@
           <octave>4</octave>
         </pitch>
         <duration>20160</duration>
+        <voice>1</voice>
         <type>half</type>
+        <staff>1</staff>
+      </note>
+      <backup>
+        <duration>40320</duration>
+      </backup>
+      <note>
+        <pitch>
+          <step>C</step>
+          <octave>3</octave>
+        </pitch>
+        <duration>40320</duration>
+        <voice>2</voice>
+        <type>whole</type>
+        <staff>2</staff>
+      </note>
+      <note>
+        <chord />
+        <pitch>
+          <step>E</step>
+          <octave>3</octave>
+        </pitch>
+        <duration>40320</duration>
+        <voice>2</voice>
+        <type>whole</type>
+        <staff>2</staff>
+      </note>
+      <note>
+        <chord />
+        <pitch>
+          <step>G</step>
+          <octave>3</octave>
+        </pitch>
+        <duration>40320</duration>
+        <voice>2</voice>
+        <type>whole</type>
+        <staff>2</staff>
       </note>
     </measure>
     <!--========================= Measure 3 ==========================-->
@@ -118,7 +205,9 @@
           <octave>4</octave>
         </pitch>
         <duration>10080</duration>
+        <voice>1</voice>
         <type>quarter</type>
+        <staff>1</staff>
       </note>
       <note>
         <pitch>
@@ -126,7 +215,9 @@
           <octave>4</octave>
         </pitch>
         <duration>10080</duration>
+        <voice>1</voice>
         <type>quarter</type>
+        <staff>1</staff>
       </note>
       <note>
         <pitch>
@@ -134,7 +225,9 @@
           <octave>4</octave>
         </pitch>
         <duration>10080</duration>
+        <voice>1</voice>
         <type>quarter</type>
+        <staff>1</staff>
       </note>
       <note>
         <pitch>
@@ -142,120 +235,22 @@
           <octave>4</octave>
         </pitch>
         <duration>10080</duration>
+        <voice>1</voice>
         <type>quarter</type>
+        <staff>1</staff>
       </note>
-    </measure>
-    <!--========================= Measure 4 ==========================-->
-    <measure implicit="no" number="4">
-      <note>
-        <pitch>
-          <step>D</step>
-          <octave>4</octave>
-        </pitch>
-        <duration>10080</duration>
-        <type>quarter</type>
-      </note>
-      <note>
-        <pitch>
-          <step>D</step>
-          <octave>4</octave>
-        </pitch>
-        <duration>10080</duration>
-        <type>quarter</type>
-      </note>
-      <note>
-        <pitch>
-          <step>C</step>
-          <octave>4</octave>
-        </pitch>
-        <duration>20160</duration>
-        <type>half</type>
-      </note>
-      <barline location="right">
-        <bar-style>light-heavy</bar-style>
-      </barline>
-    </measure>
-  </part>
-  <!--=========================== Part 2 ===========================-->
-  <part id="Pcd492ffe845a732eab23902faa2f6b95">
-    <!--========================= Measure 1 ==========================-->
-    <measure implicit="no" number="1">
-      <attributes>
-        <divisions>10080</divisions>
-        <time>
-          <beats>4</beats>
-          <beat-type>4</beat-type>
-        </time>
-        <clef>
-          <sign>F</sign>
-          <line>4</line>
-        </clef>
-      </attributes>
-      <note>
-        <pitch>
-          <step>C</step>
-          <octave>3</octave>
-        </pitch>
+      <backup>
         <duration>40320</duration>
-        <type>whole</type>
-      </note>
-      <note>
-        <chord />
-        <pitch>
-          <step>E</step>
-          <octave>3</octave>
-        </pitch>
-        <duration>40320</duration>
-        <type>whole</type>
-      </note>
-      <note>
-        <chord />
-        <pitch>
-          <step>G</step>
-          <octave>3</octave>
-        </pitch>
-        <duration>40320</duration>
-        <type>whole</type>
-      </note>
-    </measure>
-    <!--========================= Measure 2 ==========================-->
-    <measure implicit="no" number="2">
-      <note>
-        <pitch>
-          <step>C</step>
-          <octave>3</octave>
-        </pitch>
-        <duration>40320</duration>
-        <type>whole</type>
-      </note>
-      <note>
-        <chord />
-        <pitch>
-          <step>E</step>
-          <octave>3</octave>
-        </pitch>
-        <duration>40320</duration>
-        <type>whole</type>
-      </note>
-      <note>
-        <chord />
-        <pitch>
-          <step>G</step>
-          <octave>3</octave>
-        </pitch>
-        <duration>40320</duration>
-        <type>whole</type>
-      </note>
-    </measure>
-    <!--========================= Measure 3 ==========================-->
-    <measure implicit="no" number="3">
+      </backup>
       <note>
         <pitch>
           <step>F</step>
           <octave>2</octave>
         </pitch>
         <duration>40320</duration>
+        <voice>2</voice>
         <type>whole</type>
+        <staff>2</staff>
       </note>
       <note>
         <chord />
@@ -264,7 +259,9 @@
           <octave>2</octave>
         </pitch>
         <duration>40320</duration>
+        <voice>2</voice>
         <type>whole</type>
+        <staff>2</staff>
       </note>
       <note>
         <chord />
@@ -273,18 +270,55 @@
           <octave>3</octave>
         </pitch>
         <duration>40320</duration>
+        <voice>2</voice>
         <type>whole</type>
+        <staff>2</staff>
       </note>
     </measure>
     <!--========================= Measure 4 ==========================-->
     <measure implicit="no" number="4">
       <note>
         <pitch>
+          <step>D</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>10080</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <staff>1</staff>
+      </note>
+      <note>
+        <pitch>
+          <step>D</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>10080</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <staff>1</staff>
+      </note>
+      <note>
+        <pitch>
+          <step>C</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>20160</duration>
+        <voice>1</voice>
+        <type>half</type>
+        <staff>1</staff>
+      </note>
+      <backup>
+        <duration>40320</duration>
+      </backup>
+      <note>
+        <pitch>
           <step>C</step>
           <octave>3</octave>
         </pitch>
         <duration>40320</duration>
+        <voice>2</voice>
         <type>whole</type>
+        <staff>2</staff>
       </note>
       <note>
         <chord />
@@ -293,7 +327,9 @@
           <octave>3</octave>
         </pitch>
         <duration>40320</duration>
+        <voice>2</voice>
         <type>whole</type>
+        <staff>2</staff>
       </note>
       <note>
         <chord />
@@ -302,7 +338,9 @@
           <octave>3</octave>
         </pitch>
         <duration>40320</duration>
+        <voice>2</voice>
         <type>whole</type>
+        <staff>2</staff>
       </note>
       <barline location="right">
         <bar-style>light-heavy</bar-style>

@@ -6,7 +6,7 @@
 
 from pathlib import Path
 
-from music21 import chord, clef, meter, note, stream, tempo
+from music21 import chord, clef, layout, meter, note, stream, tempo
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "backend" / "tests" / "fixtures"
 
@@ -39,15 +39,19 @@ def scale_c_major() -> stream.Score:
 
 
 def twinkle_both_hands() -> stream.Score:
-    """右手メロディ+左手和音の2譜表(きらきら星の前半)。"""
-    right = stream.Part(id="RH")
+    """右手メロディ+左手和音の2譜表(きらきら星の前半)。
+
+    PartStaff + StaffGroup でピアノ譜(1パート2譜表)として出力し、
+    MusicXML に <staff> 要素が入るようにする(手判別 #10 の検証対象)。
+    """
+    right = stream.PartStaff(id="RH")
     right.append(clef.TrebleClef())
     right.append(meter.TimeSignature("4/4"))
     right.append(tempo.MetronomeMark(number=100))
     for pitch, ql in TWINKLE_MELODY:
         right.append(note.Note(pitch, quarterLength=ql))
 
-    left = stream.Part(id="LH")
+    left = stream.PartStaff(id="LH")
     left.append(clef.BassClef())
     left.append(meter.TimeSignature("4/4"))
     for pitches, ql in TWINKLE_CHORDS:
@@ -56,6 +60,7 @@ def twinkle_both_hands() -> stream.Score:
     score = stream.Score()
     score.insert(0, right)
     score.insert(0, left)
+    score.insert(0, layout.StaffGroup([right, left], symbol="brace"))
     return score
 
 
