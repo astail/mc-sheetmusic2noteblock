@@ -1,6 +1,9 @@
 """docs/DESIGN.md §7 の JSON 例がそのままバリデーションを通ることの確認。"""
 
-from app.models.blueprint import Blueprint
+import pytest
+from pydantic import ValidationError
+
+from app.models.blueprint import Blueprint, NotePlacement
 from app.models.events import NoteEvent
 from app.models.settings import ConversionSettings
 
@@ -129,6 +132,20 @@ def test_blueprint_without_layout():
     payload = {k: v for k, v in BLUEPRINT_EXAMPLE.items() if k != "layout"}
     bp = Blueprint.model_validate(payload)
     assert bp.layout is None
+
+
+def test_tempo_scale_must_be_positive():
+    with pytest.raises(ValidationError):
+        ConversionSettings(tempo_scale=0)
+    with pytest.raises(ValidationError):
+        ConversionSettings(tempo_scale=-1.5)
+
+
+def test_clicks_must_be_in_noteblock_range():
+    note = BLUEPRINT_EXAMPLE["steps"][0]["notes"][0]
+    for bad_clicks in (-1, 25):
+        with pytest.raises(ValidationError):
+            NotePlacement.model_validate({**note, "clicks": bad_clicks})
 
 
 def test_note_event_minimal():

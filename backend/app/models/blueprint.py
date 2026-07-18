@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class QuantizationStats(BaseModel):
@@ -40,7 +40,7 @@ class NotePlacement(BaseModel):
     instrument_ja: str
     base_block: str
     base_block_ja: str
-    clicks: int  # 0〜24
+    clicks: int = Field(ge=0, le=24)
     note_name: str
     midi: int
     hand: Literal["right", "left"]
