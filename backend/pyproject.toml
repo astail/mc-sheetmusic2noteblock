@@ -3,9 +3,9 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mc-sheetmusic2jukebox-backend"
+name = "mc-sheetmusic2noteblock-backend"
 version = "0.1.0"
-description = "楽譜(MIDI/MusicXML)を Minecraft ジュークボックス設計書へ変換するバックエンド"
+description = "楽譜(MIDI/MusicXML)を Minecraft 音符ブロック設計書へ変換するバックエンド"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi",
