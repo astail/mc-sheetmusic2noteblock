@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class QuantizationStats(BaseModel):
@@ -27,6 +27,12 @@ class Meta(BaseModel):
 class Repeaters(BaseModel):
     chain: list[Annotated[int, Field(ge=1, le=4)]]  # 各リピーターの目盛
     count: int
+
+    @model_validator(mode="after")
+    def _count_matches_chain(self) -> "Repeaters":
+        if self.count != len(self.chain):
+            raise ValueError("count は chain の要素数と一致すること")
+        return self
 
 
 class NoteSource(BaseModel):
@@ -55,6 +61,13 @@ class Step(BaseModel):
     delay_from_prev_rticks: int
     repeaters: Repeaters
     notes: list[NotePlacement]
+
+    @model_validator(mode="after")
+    def _repeaters_match_delay(self) -> "Step":
+        # 組み立てビューはリピーター分解、プレビュー再生は tick を使うため両者の整合を保証する
+        if sum(self.repeaters.chain) != self.delay_from_prev_rticks:
+            raise ValueError("repeaters.chain の合計は delay_from_prev_rticks と一致すること")
+        return self
 
 
 class Materials(BaseModel):

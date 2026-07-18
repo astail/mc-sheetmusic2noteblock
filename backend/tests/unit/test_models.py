@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.models.blueprint import Blueprint, NotePlacement, Repeaters
+from app.models.blueprint import Blueprint, NotePlacement, Repeaters, Step
 from app.models.events import NoteEvent
 from app.models.settings import ConversionSettings
 
@@ -159,6 +159,25 @@ def test_measure_range_must_be_positive_and_ordered():
         with pytest.raises(ValidationError):
             ConversionSettings(measure_range=bad_range)
     assert ConversionSettings(measure_range=(3, 8)).measure_range == (3, 8)
+
+
+def test_repeater_count_must_match_chain_length():
+    with pytest.raises(ValidationError):
+        Repeaters(chain=[4, 3], count=3)
+
+
+def test_step_repeater_sum_must_match_delay():
+    step = dict(BLUEPRINT_EXAMPLE["steps"][0])
+    step["repeaters"] = {"chain": [4, 4], "count": 2}  # 合計 8 ≠ delay 7
+    with pytest.raises(ValidationError):
+        Step.model_validate(step)
+
+
+def test_tempo_scale_must_be_finite():
+    with pytest.raises(ValidationError):
+        ConversionSettings(tempo_scale=float("inf"))
+    with pytest.raises(ValidationError):
+        ConversionSettings(tempo_scale=float("nan"))
 
 
 def test_note_event_minimal():
