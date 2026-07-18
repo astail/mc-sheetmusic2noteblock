@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ConversionSettings(BaseModel):
@@ -14,3 +14,12 @@ class ConversionSettings(BaseModel):
     transpose_semitones: int = 0
     hand_assignment: dict[str, Literal["right", "left", "ignore"]] | None = None
     measure_range: tuple[int, int] | None = None  # [開始小節, 終了小節] 部分変換
+
+    @field_validator("measure_range")
+    @classmethod
+    def _measure_range_ordered(cls, v: tuple[int, int] | None) -> tuple[int, int] | None:
+        if v is not None:
+            start, end = v
+            if start < 1 or start > end:
+                raise ValueError("measure_range は 1 以上かつ 開始 <= 終了 であること")
+        return v

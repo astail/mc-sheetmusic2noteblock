@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.models.blueprint import Blueprint, NotePlacement
+from app.models.blueprint import Blueprint, NotePlacement, Repeaters
 from app.models.events import NoteEvent
 from app.models.settings import ConversionSettings
 
@@ -146,6 +146,19 @@ def test_clicks_must_be_in_noteblock_range():
     for bad_clicks in (-1, 25):
         with pytest.raises(ValidationError):
             NotePlacement.model_validate({**note, "clicks": bad_clicks})
+
+
+def test_repeater_chain_must_be_1_to_4():
+    for bad_chain in ([0], [5], [4, 0]):
+        with pytest.raises(ValidationError):
+            Repeaters(chain=bad_chain, count=len(bad_chain))
+
+
+def test_measure_range_must_be_positive_and_ordered():
+    for bad_range in ((8, 3), (0, 5), (-2, 3)):
+        with pytest.raises(ValidationError):
+            ConversionSettings(measure_range=bad_range)
+    assert ConversionSettings(measure_range=(3, 8)).measure_range == (3, 8)
 
 
 def test_note_event_minimal():

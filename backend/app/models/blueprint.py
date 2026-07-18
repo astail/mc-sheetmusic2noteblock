@@ -1,6 +1,6 @@
 """設計書 Blueprint(レスポンス & 永続化。docs/DESIGN.md §7)。"""
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -25,7 +25,7 @@ class Meta(BaseModel):
 
 
 class Repeaters(BaseModel):
-    chain: list[int]  # 各リピーターの目盛(1〜4)
+    chain: list[Annotated[int, Field(ge=1, le=4)]]  # 各リピーターの目盛
     count: int
 
 
