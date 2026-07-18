@@ -2,10 +2,12 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ConversionSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # 未知キー(綴り間違い等)を 422 で弾く
+
     mode: Literal["beat", "seconds"] = "beat"
     ticks_per_quarter: Literal[3, 4, 5, 6, 8] = 4  # 実効BPM 200|150|120|100|75
     tempo_scale: float = Field(default=1.0, gt=0, allow_inf_nan=False)  # seconds モード用の倍率

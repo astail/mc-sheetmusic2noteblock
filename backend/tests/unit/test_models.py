@@ -202,6 +202,11 @@ def test_blueprint_steps_must_be_tick_consistent():
     Blueprint.model_validate({**BLUEPRINT_EXAMPLE, "steps": [base_step, consistent]})
 
 
+def test_conversion_settings_rejects_unknown_keys():
+    with pytest.raises(ValidationError):
+        ConversionSettings.model_validate({"mode": "seconds", "tempoScale": 2})
+
+
 def test_note_event_minimal():
     ev = NoteEvent(
         offset_ql=0.0,
