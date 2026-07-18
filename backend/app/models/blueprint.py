@@ -102,3 +102,15 @@ class Blueprint(BaseModel):
     materials: Materials
     warnings: list[Warning]
     layout: Layout | None = None  # 物理レイアウト提案は Phase 3(issue #35)で生成
+
+    @model_validator(mode="after")
+    def _steps_tick_consistent(self) -> "Blueprint":
+        # プレビュー再生(tick)と組み立てカード(delay)が同じタイミングになることを保証する
+        for prev, cur in zip(self.steps, self.steps[1:]):
+            if cur.tick <= prev.tick:
+                raise ValueError("steps は tick 昇順であること")
+            if cur.delay_from_prev_rticks != cur.tick - prev.tick:
+                raise ValueError(
+                    "delay_from_prev_rticks は直前ステップとの tick 差と一致すること"
+                )
+        return self

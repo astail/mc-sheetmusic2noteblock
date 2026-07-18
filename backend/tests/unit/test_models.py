@@ -180,6 +180,28 @@ def test_tempo_scale_must_be_finite():
         ConversionSettings(tempo_scale=float("nan"))
 
 
+def test_blueprint_steps_must_be_tick_consistent():
+    base_step = BLUEPRINT_EXAMPLE["steps"][0]
+    second = {
+        **base_step,
+        "index": 13,
+        "tick": 58,
+        "delay_from_prev_rticks": 7,  # 実際の tick 差は 10
+        "repeaters": {"chain": [4, 3], "count": 2},
+    }
+    payload = {**BLUEPRINT_EXAMPLE, "steps": [base_step, second]}
+    with pytest.raises(ValidationError):
+        Blueprint.model_validate(payload)
+
+    # tick 差 10 = delay 10 = chain [4,4,2] なら通る
+    consistent = {
+        **second,
+        "delay_from_prev_rticks": 10,
+        "repeaters": {"chain": [4, 4, 2], "count": 3},
+    }
+    Blueprint.model_validate({**BLUEPRINT_EXAMPLE, "steps": [base_step, consistent]})
+
+
 def test_note_event_minimal():
     ev = NoteEvent(
         offset_ql=0.0,
