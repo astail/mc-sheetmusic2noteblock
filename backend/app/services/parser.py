@@ -122,11 +122,18 @@ def parse_score(path: str | Path) -> ParsedScore:
             )
         )
 
-    marks = score.recurse().getElementsByClass(m21tempo.MetronomeMark)
+    # 拍単位が4分音符以外の表記(2分音符=60 等)も4分音符換算の BPM に正規化する
+    original_bpm = None
+    for mark in score.recurse().getElementsByClass(m21tempo.MetronomeMark):
+        quarter_bpm = mark.getQuarterBPM()
+        if quarter_bpm is not None:
+            original_bpm = float(quarter_bpm)
+            break
+
     pitches = [e.midi_pitch for e in events]
     summary = ScoreSummary(
         title=score.metadata.title if score.metadata is not None else None,
-        original_bpm=float(marks[0].number) if marks else None,
+        original_bpm=original_bpm,
         midi_min=min(pitches) if pitches else None,
         midi_max=max(pitches) if pitches else None,
         note_count=len(events),

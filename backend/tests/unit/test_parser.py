@@ -70,6 +70,22 @@ def test_sixteenth_150bpm():
     assert offsets == [i * 0.25 for i in range(16)]
 
 
+def test_original_bpm_normalized_to_quarter_bpm(tmp_path):
+    from music21 import meter, note, stream, tempo
+
+    part = stream.Part(id="P1")
+    part.append(meter.TimeSignature("4/4"))
+    part.append(tempo.MetronomeMark(referent="half", number=60))  # 2分音符=60 → 実質120BPM
+    part.append(note.Note("C4", quarterLength=1))
+    score = stream.Score()
+    score.append(part)
+    path = tmp_path / "half_note_tempo.musicxml"
+    score.write("musicxml", fp=path)
+
+    parsed = parse_score(path)
+    assert parsed.summary.original_bpm == 120
+
+
 def test_unsupported_extension_rejected():
     with pytest.raises(ValueError):
         parse_score(FIXTURES / "score.pdf")
