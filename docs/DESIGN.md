@@ -25,7 +25,7 @@
 ## 3. リポジトリ構成
 
 ```
-mc-sheetmusic2jukebox/
+mc-sheetmusic2noteblock/
 ├── docker-compose.yml
 ├── README.md / .gitignore(data/ 等)
 ├── docs/                           # 本ドキュメント群

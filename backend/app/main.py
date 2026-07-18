@@ -7,7 +7,7 @@ api_router = APIRouter(prefix="/api")
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="mc-sheetmusic2jukebox")
+    app = FastAPI(title="mc-sheetmusic2noteblock")
     app.include_router(api_router)
 
     @app.get("/healthz")

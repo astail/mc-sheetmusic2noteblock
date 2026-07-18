@@ -1,4 +1,4 @@
-# mc-sheetmusic2jukebox
+# mc-sheetmusic2noteblock
 
 ピアノ楽譜(MIDI / MusicXML / PDF・画像)をアップロードすると、Minecraft の音符ブロック(ノートブロック)+レッドストーン回路でその曲を演奏する装置の「組み立て設計書」をブラウザに表示する Web アプリ。
 
