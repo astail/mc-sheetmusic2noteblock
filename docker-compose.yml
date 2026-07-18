@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      - DATA_DIR=/data
+      - OMR_SERVICE_URL=http://omr:8080
+
+  # omr サービスの枠のみ定義(ビルドは Phase 4)。--profile omr 指定時のみ起動
+  omr:
+    build: ./omr
+    profiles: ["omr"]
+    volumes:
+      - ./data:/data
+    expose:
+      - "8080"
