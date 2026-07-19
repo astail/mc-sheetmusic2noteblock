@@ -3,10 +3,12 @@
 from fastapi import APIRouter, FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.api import scores
 from app.config import FRONTEND_DIR
 
 api_router = APIRouter(prefix="/api")
-# 各エンドポイント (scores / blueprints / omr) のルータは後続 issue でここに登録する
+api_router.include_router(scores.router)
+# blueprints / omr のルータは後続 issue でここに登録する
 
 
 def create_app() -> FastAPI:
