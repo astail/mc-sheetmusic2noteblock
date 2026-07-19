@@ -18,13 +18,17 @@ Hand = Literal["right", "left", "other"]
 C4_MIDI = 60
 
 
+# "Upright Piano" 等の部分一致を避けるため単語境界付きで判定する
+_RIGHT_NAME_RE = re.compile(r"\bright\b|\br\.?h\b|右手", re.IGNORECASE)
+_LEFT_NAME_RE = re.compile(r"\bleft\b|\bl\.?h\b|左手", re.IGNORECASE)
+
+
 def _hand_from_name(name: str | None) -> Hand | None:
     if not name:
         return None
-    lowered = name.lower()
-    if "right" in lowered or "r.h" in lowered or "右手" in name or re.search(r"\brh\b", lowered):
+    if _RIGHT_NAME_RE.search(name):
         return "right"
-    if "left" in lowered or "l.h" in lowered or "左手" in name or re.search(r"\blh\b", lowered):
+    if _LEFT_NAME_RE.search(name):
         return "left"
     return None
 

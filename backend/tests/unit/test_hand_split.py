@@ -52,6 +52,14 @@ def test_track_name_japanese():
     assert hands == ["left", "right"]
 
 
+def test_instrument_names_do_not_match_hand_labels():
+    # "Upright"/"Bright" の部分文字列 "right" に誤マッチしないこと
+    events = [_event(60, track=0), _event(48, track=1)]
+    hands = split_hands(events, track_names={0: "Upright Piano", 1: "Bright Piano"})
+    # 名前では解決せず ③ の順序割当に落ちる
+    assert hands == ["right", "left"]
+
+
 def test_single_track_pitch_split_at_c4():
     parsed = parse_score(FIXTURES / "scale_c_major.musicxml")
     hands = split_hands(parsed.events)
