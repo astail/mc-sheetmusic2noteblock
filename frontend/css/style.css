@@ -81,3 +81,55 @@ body {
   border-top: 1px solid var(--color-border);
   padding: 8px 16px;
 }
+
+/* アップロード(D&D) */
+.dropzone {
+  border: 2px dashed var(--color-border);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.dropzone--dragover {
+  border-color: var(--color-accent);
+  background: #eef5ee;
+}
+
+.dropzone-note {
+  font-size: 0.85rem;
+}
+
+.dropzone button {
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.upload-status {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.upload-status--busy {
+  background: #f0efe9;
+  color: var(--color-muted);
+}
+
+.upload-status--success {
+  background: #e8f3e8;
+  color: var(--color-accent);
+}
+
+.upload-status--error {
+  background: #fbe9e7;
+  color: #b3372a;
+}
+
+.upload-status--info {
+  background: var(--hand-right-bg);
+  color: var(--hand-right);
+}
