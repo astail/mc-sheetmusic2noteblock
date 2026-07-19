@@ -51,8 +51,9 @@ def test_decompose_delay():
     assert decompose_delay(7) == [4, 3]
     assert decompose_delay(12) == [4, 4, 4]
     assert decompose_delay(0) == []
-    assert decompose_delay(1) == [1]
-    assert decompose_delay(4) == [4]
+    # 1〜4 は単一リピーター
+    for d in (1, 2, 3, 4):
+        assert decompose_delay(d) == [d]
     assert decompose_delay(5) == [4, 1]
 
 
