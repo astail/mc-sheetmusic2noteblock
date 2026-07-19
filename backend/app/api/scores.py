@@ -22,7 +22,9 @@ class UploadScoreResponse(BaseModel):
 
 
 @router.post("/scores", response_model=UploadScoreResponse)
-async def upload_score(file: UploadFile) -> UploadScoreResponse:
+def upload_score(file: UploadFile) -> UploadScoreResponse:
+    # 同期 def にすることで FastAPI が threadpool で実行し、
+    # 数秒かかる music21 パース中も event loop(/healthz 等)をブロックしない
     ext = Path(file.filename or "").suffix.lower()
     if ext in OMR_EXTENSIONS:
         raise HTTPException(
@@ -35,7 +37,7 @@ async def upload_score(file: UploadFile) -> UploadScoreResponse:
             detail=f"未対応の拡張子です: {ext or '(なし)'}(対応: .mid / .musicxml / .mxl)",
         )
 
-    content = await file.read()
+    content = file.file.read()
     score_id = storage.create_score(file.filename, content)
     try:
         parsed = parse_score(storage.original_path(score_id))
