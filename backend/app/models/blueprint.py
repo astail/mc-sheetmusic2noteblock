@@ -15,7 +15,7 @@ class QuantizationStats(BaseModel):
 class Meta(BaseModel):
     title: str
     source_file: str
-    original_bpm: float
+    original_bpm: float | None = None  # テンポ記号がない楽譜では None
     effective_bpm: float | None = None  # seconds モードでは None
     ticks_per_quarter: int | None = None  # seconds モードでは None
     total_rticks: int

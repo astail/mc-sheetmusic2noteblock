@@ -43,7 +43,7 @@ def build_blueprint_parts(
     *,
     title: str,
     source_file: str,
-    original_bpm: float,
+    original_bpm: float | None,
     ticks_per_quarter: int | None,
     effective_bpm: float | None,
     quantization_stats: QuantizationStats,

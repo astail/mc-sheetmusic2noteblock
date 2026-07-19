@@ -170,6 +170,12 @@ def test_assembled_blueprint_validates():
     assert all(n.midi < 60 for n in placed if n.hand == "left")
 
 
+def test_meta_without_original_bpm():
+    # テンポ記号がない楽譜(summary.original_bpm=None)でも meta が組み立てられる
+    meta, _, _ = _build([_qe(0)], ["right"], original_bpm=None)
+    assert meta.original_bpm is None
+
+
 def test_seconds_mode_meta_without_bpm():
     # seconds モード(effective_bpm / tpq なし)でも meta が組み立てられる
     meta, steps, _ = _build(
