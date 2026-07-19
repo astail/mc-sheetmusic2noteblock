@@ -20,6 +20,7 @@ export function initUpload() {
   const fileInput = document.getElementById("file-input");
   const selectButton = document.getElementById("file-select-button");
   const status = document.getElementById("upload-status");
+  let uploading = false; // アップロード中の並行投入(D&D 含む)をガード
 
   function showStatus(message, kind) {
     status.hidden = false;
@@ -28,6 +29,7 @@ export function initUpload() {
   }
 
   async function handleFile(file) {
+    if (uploading) return;
     const kind = classifyFile(file.name);
     if (kind === "omr") {
       showStatus(
@@ -41,6 +43,7 @@ export function initUpload() {
       return;
     }
     showStatus(`「${file.name}」をアップロード中…`, "busy");
+    uploading = true;
     selectButton.disabled = true;
     try {
       const res = await uploadScore(file);
@@ -63,6 +66,7 @@ export function initUpload() {
         err instanceof ApiError ? err.detail : "アップロードに失敗しました";
       showStatus(message, "error");
     } finally {
+      uploading = false;
       selectButton.disabled = false;
     }
   }
