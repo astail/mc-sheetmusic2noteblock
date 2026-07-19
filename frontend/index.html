@@ -16,7 +16,14 @@
     <!-- 1ページ SPA、上から下へのウィザード (docs/DESIGN.md §8) -->
     <section id="upload-section" class="wizard-step">
       <h2>1. 楽譜アップロード</h2>
-      <!-- D&D + ファイル選択 (issue #28) -->
+      <div id="dropzone" class="dropzone">
+        <p>ここに楽譜ファイルをドロップ(.mid / .musicxml / .mxl)</p>
+        <p class="dropzone-note">PDF/画像は実験的機能(OMR)として Phase 4 で対応予定</p>
+        <button type="button" id="file-select-button">ファイルを選択</button>
+        <input type="file" id="file-input"
+               accept=".mid,.musicxml,.mxl,.pdf,.png,.jpg,.jpeg" hidden>
+      </div>
+      <p id="upload-status" class="upload-status" hidden></p>
     </section>
     <section id="settings-section" class="wizard-step">
       <h2>2. 変換設定</h2>
