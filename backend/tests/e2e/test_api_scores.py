@@ -55,6 +55,22 @@ def test_upload_unknown_extension_returns_415():
     assert res.status_code == 415
 
 
+def test_get_score_returns_same_summary_as_post():
+    posted = _upload("twinkle.mid", (FIXTURES / "twinkle.mid").read_bytes()).json()
+    res = client.get(f"/api/scores/{posted['score_id']}")
+    assert res.status_code == 200
+    # 完了条件: POST 直後と(ディスクからの読み戻し=再起動相当で)同じサマリが返る
+    assert res.json() == posted
+
+
+def test_get_unknown_score_returns_404():
+    assert client.get(f"/api/scores/{'0' * 32}").status_code == 404
+
+
+def test_get_invalid_score_id_returns_404():
+    assert client.get("/api/scores/not-a-valid-id").status_code == 404
+
+
 def test_upload_broken_midi_returns_422_and_cleans_up():
     res = _upload("broken.mid", b"this is not midi data")
     assert res.status_code == 422
