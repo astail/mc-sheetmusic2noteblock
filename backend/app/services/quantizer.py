@@ -1,7 +1,8 @@
-"""拍グリッド量子化(既定モード。docs/RESEARCH.md §3、DESIGN.md §6)。
+"""タイミング量子化(docs/RESEARCH.md §3、DESIGN.md §6)。
 
-offset_ql(quarterLength)× ticks_per_quarter を最近傍丸めして整数 tick(RT)を割り当てる。
-実効 BPM = 600 / tpq。丸め誤差は拍位置に対して一定比率でドリフトしない。
+- 拍グリッド(既定): offset_ql × ticks_per_quarter を最近傍丸め。実効 BPM = 600 / tpq。
+  丸め誤差は拍位置に対して一定比率でドリフトしない。
+- 秒グリッド(補助): テンポ変化が多い曲向け。offset_seconds × tempo_scale を 0.1 秒に最近傍丸め。
 """
 
 import math
@@ -23,7 +24,7 @@ class QuantizedEvent(BaseModel):
 
 class QuantizationResult(BaseModel):
     events: list[QuantizedEvent]  # tick 昇順。同 tick・同音の重複はデデュープ済み
-    effective_bpm: float
+    effective_bpm: float | None = None  # seconds モードでは None
     stats: QuantizationStats
     warnings: list[Warning]
 
@@ -37,14 +38,16 @@ def recommend_tpq(original_bpm: float) -> int:
     return min(ALLOWED_TPQ, key=lambda tpq: (abs(effective_bpm(tpq) - original_bpm), tpq))
 
 
-def quantize_beats(events: list[NoteEvent], ticks_per_quarter: int) -> QuantizationResult:
+def _quantize_raw(
+    pairs: list[tuple[NoteEvent, float]],
+) -> tuple[list[QuantizedEvent], QuantizationStats, list[Warning]]:
+    """(event, raw_tick) のリストを丸め・デデュープし、誤差統計とマージ警告を返す。"""
     quantized: list[QuantizedEvent] = []
     errors_ms: list[float] = []
     seen: set[tuple[int, int]] = set()
     merged = 0
 
-    for event in sorted(events, key=lambda e: (e.offset_ql, e.midi_pitch)):
-        raw_tick = event.offset_ql * ticks_per_quarter
+    for event, raw_tick in sorted(pairs, key=lambda p: (p[1], p[0].midi_pitch)):
         tick = math.floor(raw_tick + 0.5)  # 最近傍丸め(0.5 は常に切り上げ)
         # 誤差統計はマージされる音も含め全入力ノートを対象にする
         errors_ms.append(abs(raw_tick - tick) * TICK_MS)
@@ -70,9 +73,40 @@ def quantize_beats(events: list[NoteEvent], ticks_per_quarter: int) -> Quantizat
                 message=f"同一 tick に落ちた同じ音 {merged} 音をマージしました",
             )
         )
+    return quantized, stats, warnings
+
+
+def quantize_beats(
+    events: list[NoteEvent],
+    ticks_per_quarter: int,
+    has_tempo_changes: bool = False,
+) -> QuantizationResult:
+    pairs = [(e, e.offset_ql * ticks_per_quarter) for e in events]
+    quantized, stats, warnings = _quantize_raw(pairs)
+    bpm = effective_bpm(ticks_per_quarter)
+    if has_tempo_changes:
+        warnings.append(
+            Warning(
+                type="tempo_change",
+                message=(
+                    f"原曲にテンポ変化があります。"
+                    f"beat モードでは一定テンポ({bpm:g}BPM)に平坦化されます"
+                ),
+            )
+        )
     return QuantizationResult(
         events=quantized,
-        effective_bpm=effective_bpm(ticks_per_quarter),
+        effective_bpm=bpm,
         stats=stats,
         warnings=warnings,
     )
+
+
+def quantize_seconds(events: list[NoteEvent], tempo_scale: float = 1.0) -> QuantizationResult:
+    """secondsMap 由来の実秒 × tempo_scale を 0.1 秒グリッドに最近傍丸めする。"""
+    missing = [e for e in events if e.offset_seconds is None]
+    if missing:
+        raise ValueError("offset_seconds がないイベントがあります(parser で生成してください)")
+    pairs = [(e, e.offset_seconds * tempo_scale / 0.1) for e in events]
+    quantized, stats, warnings = _quantize_raw(pairs)
+    return QuantizationResult(events=quantized, stats=stats, warnings=warnings)

@@ -34,6 +34,7 @@ class TrackInfo(BaseModel):
 class ScoreSummary(BaseModel):
     title: str | None = None
     original_bpm: float | None = None
+    has_tempo_changes: bool = False
     midi_min: int | None = None
     midi_max: int | None = None
     note_count: int
@@ -64,10 +65,11 @@ def _iter_note_events(
     staff_number: int | None,
     track_index: int,
     channel: int | None,
+    seconds_by_id: dict[int, float],
 ):
-    stripped = part.stripTies()
-    for n in stripped.recurse().notes:
-        offset = float(n.getOffsetInHierarchy(stripped))
+    for n in part.recurse().notes:
+        offset = float(n.getOffsetInHierarchy(part))
+        offset_seconds = seconds_by_id.get(id(n))
         try:
             beat = float(n.beat)
         except Exception:
@@ -75,6 +77,7 @@ def _iter_note_events(
         for pitch in getattr(n, "pitches", ()):  # Chord は展開、Unpitched は空でスキップ
             yield NoteEvent(
                 offset_ql=offset,
+                offset_seconds=offset_seconds,
                 duration_ql=float(n.duration.quarterLength),
                 midi_pitch=pitch.midi,
                 part_id=part_id,
@@ -93,10 +96,16 @@ def parse_score(path: str | Path) -> ParsedScore:
     if ext not in SUPPORTED_EXTENSIONS:
         raise ValueError(f"未対応の拡張子です: {ext}")
 
-    score = converter.parse(path)
+    score = converter.parse(path).stripTies()  # タイは score 全体で結合して onset のみ採用
     parts = list(score.parts)
     if not parts:
         parts = [score]
+
+    # テンポマップ適用後の実秒(seconds モード用)。flatten は同一要素を参照するので id で引く
+    seconds_by_id = {
+        id(entry["element"]): float(entry["offsetSeconds"])
+        for entry in score.flatten().secondsMap
+    }
 
     events: list[NoteEvent] = []
     tracks: list[TrackInfo] = []
@@ -108,7 +117,9 @@ def parse_score(path: str | Path) -> ParsedScore:
         part_events = (
             []
             if is_percussion
-            else list(_iter_note_events(part, part_id, staff_number, index, channel))
+            else list(
+                _iter_note_events(part, part_id, staff_number, index, channel, seconds_by_id)
+            )
         )
         events.extend(part_events)
         tracks.append(
@@ -123,17 +134,17 @@ def parse_score(path: str | Path) -> ParsedScore:
         )
 
     # 拍単位が4分音符以外の表記(2分音符=60 等)も4分音符換算の BPM に正規化する
-    original_bpm = None
-    for mark in score.recurse().getElementsByClass(m21tempo.MetronomeMark):
-        quarter_bpm = mark.getQuarterBPM()
-        if quarter_bpm is not None:
-            original_bpm = float(quarter_bpm)
-            break
+    quarter_bpms = [
+        float(qbpm)
+        for mark in score.recurse().getElementsByClass(m21tempo.MetronomeMark)
+        if (qbpm := mark.getQuarterBPM()) is not None
+    ]
 
     pitches = [e.midi_pitch for e in events]
     summary = ScoreSummary(
         title=score.metadata.title if score.metadata is not None else None,
-        original_bpm=original_bpm,
+        original_bpm=quarter_bpms[0] if quarter_bpms else None,
+        has_tempo_changes=len(set(quarter_bpms)) > 1,
         midi_min=min(pitches) if pitches else None,
         midi_max=max(pitches) if pitches else None,
         note_count=len(events),

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 class NoteEvent(BaseModel):
     offset_ql: float  # 曲頭からのオフセット(quarterLength)
+    offset_seconds: float | None = None  # テンポマップ適用後の実秒(seconds モード用)
     duration_ql: float
     midi_pitch: int
     part_id: str
