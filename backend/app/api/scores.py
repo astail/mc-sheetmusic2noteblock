@@ -1,4 +1,8 @@
-"""POST /api/scores: multipart アップロード + 即パースしてサマリ返却(DESIGN.md §5)。"""
+"""スコア API(DESIGN.md §5)。
+
+- POST /api/scores: multipart アップロード + 即パースしてサマリ返却
+- GET /api/scores/{score_id}: 保存済みサマリ返却
+"""
 
 import shutil
 from pathlib import Path
@@ -15,14 +19,23 @@ router = APIRouter(tags=["scores"])
 OMR_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
 
 
-class UploadScoreResponse(BaseModel):
+class ScoreResponse(BaseModel):
     score_id: str
     summary: ScoreSummary
     recommended_tpq: int | None = None  # 原曲 BPM が取れない場合は None
 
 
-@router.post("/scores", response_model=UploadScoreResponse)
-def upload_score(file: UploadFile) -> UploadScoreResponse:
+def _score_response(score_id: str, summary: ScoreSummary) -> ScoreResponse:
+    bpm = summary.original_bpm
+    return ScoreResponse(
+        score_id=score_id,
+        summary=summary,
+        recommended_tpq=recommend_tpq(bpm) if bpm is not None else None,
+    )
+
+
+@router.post("/scores", response_model=ScoreResponse)
+def upload_score(file: UploadFile) -> ScoreResponse:
     # 同期 def にすることで FastAPI が threadpool で実行し、
     # 数秒かかる music21 パース中も event loop(/healthz 等)をブロックしない
     ext = Path(file.filename or "").suffix.lower()
@@ -49,9 +62,16 @@ def upload_score(file: UploadFile) -> UploadScoreResponse:
         ) from exc
 
     storage.save_parsed(score_id, parsed.summary)
-    bpm = parsed.summary.original_bpm
-    return UploadScoreResponse(
-        score_id=score_id,
-        summary=parsed.summary,
-        recommended_tpq=recommend_tpq(bpm) if bpm is not None else None,
-    )
+    return _score_response(score_id, parsed.summary)
+
+
+@router.get("/scores/{score_id}", response_model=ScoreResponse)
+def get_score(score_id: str) -> ScoreResponse:
+    try:
+        summary = storage.load_parsed(score_id)
+    except ValueError:
+        # 不正な形式の id は存在しない id と同様に扱う
+        summary = None
+    if summary is None:
+        raise HTTPException(status_code=404, detail="score が見つかりません")
+    return _score_response(score_id, summary)
