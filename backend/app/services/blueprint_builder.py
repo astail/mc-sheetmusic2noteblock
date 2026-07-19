@@ -44,15 +44,19 @@ def build_blueprint_parts(
     title: str,
     source_file: str,
     original_bpm: float,
-    ticks_per_quarter: int,
-    effective_bpm: float,
+    ticks_per_quarter: int | None,
+    effective_bpm: float | None,
     quantization_stats: QuantizationStats,
     preset: str = "bass_harp_bell",
     transpose_semitones: int = 0,
 ) -> tuple[Meta, list[Step], list[Warning]]:
     """Step 列・meta・警告(big_chord / octave_shift)を組み立てる。
 
-    hands は quantized と同順。hand が "other" のイベントは設計書から除外する。
+    hands は quantized と同順で渡すこと。quantizer は入力イベントを並べ替え・デデュープ
+    するため、パース順の events から作った hands は使えない。量子化後に
+    `split_hands([q.event for q in quantized], ...)` で作るのが正しい。
+    hand が "other" のイベントは設計書から除外する。
+    ticks_per_quarter / effective_bpm は seconds モードでは None。
     """
     by_tick: dict[int, list[NotePlacement]] = defaultdict(list)
     shifted_notes = 0

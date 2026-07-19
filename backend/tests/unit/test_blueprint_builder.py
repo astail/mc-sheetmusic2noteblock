@@ -121,8 +121,9 @@ def test_note_name():
 def test_scale_fixture_end_to_end_numbers():
     # IMPLEMENTATION_PLAN の E2E 数値: steps 8、delay 4(先頭は 0)、全音 harp、C4 = 6クリック
     parsed = parse_score(FIXTURES / "scale_c_major.musicxml")
-    hands = split_hands(parsed.events)
     result = quantize_beats(parsed.events, ticks_per_quarter=4)
+    # quantizer は並べ替えるため hands は量子化後のイベント順で作る
+    hands = split_hands([q.event for q in result.events])
     meta, steps, warnings = _build(
         result.events,
         hands,
@@ -141,8 +142,8 @@ def test_scale_fixture_end_to_end_numbers():
 def test_assembled_blueprint_validates():
     # 生成した Step 列が Blueprint モデルの整合検証(tick/delay/repeaters)を通る
     parsed = parse_score(FIXTURES / "twinkle_both_hands.musicxml")
-    hands = split_hands(parsed.events)
     result = quantize_beats(parsed.events, ticks_per_quarter=4)
+    hands = split_hands([q.event for q in result.events])
     meta, steps, warnings = _build(
         result.events,
         hands,
@@ -160,3 +161,23 @@ def test_assembled_blueprint_validates():
         warnings=warnings,
     )
     assert blueprint.meta.step_count == len(blueprint.steps)
+    # 手の対応が量子化の並べ替え後も正しい(右手=メロディ14音、左手=和音12音)
+    placed = [n for s in blueprint.steps for n in s.notes]
+    assert sum(1 for n in placed if n.hand == "right") == 14
+    assert sum(1 for n in placed if n.hand == "left") == 12
+    # staff 1(右手)は 4 オクターブ帯、staff 2(左手)は低域という元データの性質も保たれる
+    assert all(n.midi >= 60 for n in placed if n.hand == "right")
+    assert all(n.midi < 60 for n in placed if n.hand == "left")
+
+
+def test_seconds_mode_meta_without_bpm():
+    # seconds モード(effective_bpm / tpq なし)でも meta が組み立てられる
+    meta, steps, _ = _build(
+        [_qe(0)],
+        ["right"],
+        ticks_per_quarter=None,
+        effective_bpm=None,
+    )
+    assert meta.effective_bpm is None
+    assert meta.ticks_per_quarter is None
+    assert meta.step_count == 1
