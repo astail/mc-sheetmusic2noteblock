@@ -47,6 +47,9 @@ def test_dedupe_same_tick_same_pitch():
     assert result.stats.merged_notes == 1
     assert len(result.warnings) == 1
     assert result.warnings[0].type == "merge"
+    # マージされた音(0.05ql → 0.2 tick = 20ms 移動)も誤差統計に含まれる
+    assert result.stats.moved_notes == 1
+    assert abs(result.stats.max_error_ms - 20.0) < 1e-9
 
 
 def test_same_tick_different_pitch_not_merged():

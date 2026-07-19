@@ -46,12 +46,13 @@ def quantize_beats(events: list[NoteEvent], ticks_per_quarter: int) -> Quantizat
     for event in sorted(events, key=lambda e: (e.offset_ql, e.midi_pitch)):
         raw_tick = event.offset_ql * ticks_per_quarter
         tick = math.floor(raw_tick + 0.5)  # 最近傍丸め(0.5 は常に切り上げ)
+        # 誤差統計はマージされる音も含め全入力ノートを対象にする
+        errors_ms.append(abs(raw_tick - tick) * TICK_MS)
         key = (tick, event.midi_pitch)
         if key in seen:
             merged += 1
             continue
         seen.add(key)
-        errors_ms.append(abs(raw_tick - tick) * TICK_MS)
         quantized.append(QuantizedEvent(event=event, tick=tick))
 
     moved = sum(1 for e in errors_ms if e > _ERROR_EPS_MS)
