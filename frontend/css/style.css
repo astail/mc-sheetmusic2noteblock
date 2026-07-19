@@ -1,0 +1,83 @@
+/* mc-sheetmusic2noteblock 基本スタイル (docs/DESIGN.md §8) */
+
+:root {
+  /* カラートークン */
+  --color-bg: #f5f4ef;
+  --color-surface: #ffffff;
+  --color-text: #2b2b2b;
+  --color-muted: #6b6b6b;
+  --color-border: #d9d5cc;
+  --color-accent: #3d8b40; /* Minecraft の草原イメージの緑 */
+  /* 右手=青系 / 左手=橙系 (ステップカード・再生ハイライトで共用) */
+  --hand-right: #2f6fb7;
+  --hand-right-bg: #e3edf8;
+  --hand-left: #c8701d;
+  --hand-left-bg: #f9ecdd;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  /* 下部固定の再生バーに隠れないように余白を確保 */
+  padding-bottom: 72px;
+}
+
+.site-header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: 16px 24px;
+}
+
+.site-header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.site-header p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+/* 上から下へのウィザード */
+.wizard {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.wizard-step {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.wizard-step h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  border-left: 4px solid var(--color-accent);
+  padding-left: 8px;
+}
+
+/* プレビュー再生バー(画面下部固定) */
+.player-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 56px;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding: 8px 16px;
+}
