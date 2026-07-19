@@ -76,7 +76,16 @@ def test_parsed_and_blueprint_roundtrip():
     assert loaded_blueprint == _blueprint()
 
     files = {p.name for p in storage.score_dir(score_id).iterdir()}
-    assert files == {"original.mid", "parsed.json", "blueprint.json"}
+    assert files == {"original.mid", "parsed.json", "blueprint.json", "source_filename.txt"}
+
+
+def test_source_filename_preserved():
+    # アップロード時の表示名が永続化され、後段の Blueprint.meta.source_file に使える
+    score_id = storage.create_score("きらきら星.mid", b"midi")
+    assert storage.load_source_filename(score_id) == "きらきら星.mid"
+    # パス付きで来ても名前部分のみ保存する
+    score_id2 = storage.create_score("dir/sub/twinkle.mid", b"midi")
+    assert storage.load_source_filename(score_id2) == "twinkle.mid"
 
 
 def test_missing_returns_none():

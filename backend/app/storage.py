@@ -33,13 +33,24 @@ def score_dir(score_id: str) -> Path:
 
 
 def create_score(original_filename: str, content: bytes) -> str:
-    """score_id を発行し original.<ext> を保存する。"""
+    """score_id を発行し original.<ext> と表示用ファイル名を保存する。"""
     score_id = uuid.uuid4().hex
     ext = Path(original_filename).suffix.lower()
     directory = _scores_root() / score_id
     directory.mkdir(parents=True, exist_ok=True)
     (directory / f"original{ext}").write_bytes(content)
+    # Blueprint.meta.source_file 用に元のファイル名を保持する
+    (directory / "source_filename.txt").write_text(
+        Path(original_filename).name, encoding="utf-8"
+    )
     return score_id
+
+
+def load_source_filename(score_id: str) -> str | None:
+    path = score_dir(score_id) / "source_filename.txt"
+    if not path.is_file():
+        return None
+    return path.read_text(encoding="utf-8")
 
 
 def score_exists(score_id: str) -> bool:
