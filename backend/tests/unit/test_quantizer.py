@@ -2,9 +2,11 @@
 
 from pathlib import Path
 
+import pytest
+
 from app.models.events import NoteEvent
 from app.services.parser import parse_score
-from app.services.quantizer import quantize_beats, recommend_tpq
+from app.services.quantizer import quantize_beats, quantize_seconds, recommend_tpq
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -73,6 +75,48 @@ def test_recommend_tpq():
     assert recommend_tpq(75) == 8
     assert recommend_tpq(90) == 6  # |100-90| < |75-90|
     assert recommend_tpq(135) == 4  # 同距離(150/120)は実効 BPM が高い方
+
+
+def test_tempo_change_seconds_mode():
+    # 完了条件: tempo_change.mid が seconds モードで変換できる
+    parsed = parse_score(FIXTURES / "tempo_change.mid")
+    assert parsed.summary.has_tempo_changes
+    result = quantize_seconds(parsed.events)
+    # 120BPM 区間は 0.5s(=5 tick)刻み、90BPM 区間は 2/3s(≒6.67 tick)刻み
+    assert [q.tick for q in result.events] == [0, 5, 10, 15, 20, 27, 33, 40]
+    assert result.effective_bpm is None
+    # 90BPM 区間の丸め誤差は最大 1/3 tick ≒ 33.3ms
+    assert abs(result.stats.max_error_ms - 100 / 3) < 1e-6
+
+
+def test_tempo_change_beat_mode_warns_flattening():
+    # 完了条件: beat モードでは平坦化警告が付く
+    parsed = parse_score(FIXTURES / "tempo_change.mid")
+    result = quantize_beats(
+        parsed.events, ticks_per_quarter=4, has_tempo_changes=parsed.summary.has_tempo_changes
+    )
+    assert any(w.type == "tempo_change" for w in result.warnings)
+    # テンポ変化がない曲では警告なし
+    scale = parse_score(FIXTURES / "scale_c_major.musicxml")
+    assert not scale.summary.has_tempo_changes
+    result2 = quantize_beats(
+        scale.events, ticks_per_quarter=4, has_tempo_changes=scale.summary.has_tempo_changes
+    )
+    assert not any(w.type == "tempo_change" for w in result2.warnings)
+
+
+def test_seconds_mode_tempo_scale():
+    parsed = parse_score(FIXTURES / "tempo_change.mid")
+    result = quantize_seconds(parsed.events, tempo_scale=2.0)
+    assert [q.tick for q in result.events] == [0, 10, 20, 30, 40, 53, 67, 80]
+
+
+def test_seconds_mode_requires_offset_seconds():
+    event = NoteEvent(
+        offset_ql=0.0, duration_ql=1.0, midi_pitch=60, part_id="P1", track_index=0
+    )
+    with pytest.raises(ValueError):
+        quantize_seconds([event])
 
 
 def test_scale_c_major_quarter_notes():
