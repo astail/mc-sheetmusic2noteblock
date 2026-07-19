@@ -28,6 +28,13 @@ def create_blueprint(score_id: str, settings: ConversionSettings) -> Blueprint:
     if original is None or summary is None:
         raise HTTPException(status_code=404, detail="score が見つかりません")
 
+    if settings.measure_range is not None:
+        # 部分変換は offset の起点補正を含めて issue #38 で対応。黙って無視しない
+        raise HTTPException(
+            status_code=422,
+            detail="measure_range(小節範囲の部分変換)は未対応です(issue #38 で対応予定)",
+        )
+
     parsed = parse_score(original)
     if settings.mode == "seconds":
         result = quantize_seconds(parsed.events, tempo_scale=settings.tempo_scale)

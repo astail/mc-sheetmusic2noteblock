@@ -83,6 +83,17 @@ def test_custom_preset_returns_422_until_implemented():
     assert res.status_code == 422
 
 
+def test_measure_range_returns_422_until_implemented():
+    # 黙って全曲変換せず、#38 実装まで明示的にエラーにする
+    score_id = _upload("scale_c_major.musicxml")
+    res = client.post(
+        f"/api/scores/{score_id}/blueprint",
+        json={"ticks_per_quarter": 4, "measure_range": [1, 2]},
+    )
+    assert res.status_code == 422
+    assert "measure_range" in res.json()["detail"]
+
+
 def test_seconds_mode_on_tempo_change():
     score_id = _upload("tempo_change.mid")
     res = client.post(
