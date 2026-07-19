@@ -61,12 +61,22 @@ def build_blueprint_parts(
     by_tick: dict[int, list[NotePlacement]] = defaultdict(list)
     shifted_notes = 0
     shift_amounts: list[int] = []
+    # オクターブシフト/折込で異なる元ピッチが同じ出力音になる衝突をデデュープする
+    seen_placements: set[tuple[int, str, int]] = set()
+    merged_after_mapping = 0
+    merged_ticks: set[int] = set()
     for q, hand in zip(quantized, hands):
         if hand == "other":
             continue
         mapped = map_pitch(
             q.event.midi_pitch, preset=preset, transpose_semitones=transpose_semitones
         )
+        placement_key = (q.tick, mapped.instrument, mapped.clicks)
+        if placement_key in seen_placements:
+            merged_after_mapping += 1
+            merged_ticks.add(q.tick)
+            continue
+        seen_placements.add(placement_key)
         inst = INSTRUMENTS[mapped.instrument]
         effective_midi = inst.base_midi + mapped.clicks
         source = None
@@ -133,6 +143,18 @@ def build_blueprint_parts(
                 type="big_chord",
                 message=f"ステップ{index}は同時{count}音です。分岐ダストを両側に伸ばす配線を推奨",
                 steps=[index],
+            )
+        )
+    if merged_after_mapping:
+        tick_to_index = {s.tick: s.index for s in steps}
+        warnings.append(
+            Warning(
+                type="merge",
+                message=(
+                    f"同一ステップで同じ音色・クリック数になる "
+                    f"{merged_after_mapping} 音をマージしました"
+                ),
+                steps=sorted(tick_to_index[t] for t in merged_ticks),
             )
         )
 

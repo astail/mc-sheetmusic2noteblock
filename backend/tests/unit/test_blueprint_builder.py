@@ -111,6 +111,17 @@ def test_octave_shift_warning_has_step_indices():
     assert placed.octave_shift == 1
 
 
+def test_mapped_note_collision_deduped():
+    # MIDI 21 は +1 オクターブで 33 になり、素の 33 と同一の (bass, 3クリック) に衝突する
+    quantized = [_qe(0, midi=21), _qe(0, midi=33)]
+    _, steps, warnings = _build(quantized, ["left", "left"])
+    assert len(steps[0].notes) == 1
+    assert (steps[0].notes[0].instrument, steps[0].notes[0].clicks) == ("bass", 3)
+    merge = [w for w in warnings if w.type == "merge"]
+    assert len(merge) == 1
+    assert merge[0].steps == [0]
+
+
 def test_note_name():
     assert note_name(60) == "C4"
     assert note_name(54) == "F#3"
