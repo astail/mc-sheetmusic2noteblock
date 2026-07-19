@@ -80,3 +80,38 @@ def test_no_warning_when_all_in_range():
 def test_unknown_preset_rejected():
     with pytest.raises(ValueError):
         map_pitch(60, preset="unknown")
+
+
+def test_harp_only_everything_maps_to_harp():
+    # 完了条件: どんな入力でも出力が全て harp になる
+    for midi in (21, 30, 53, 54, 60, 78, 79, 102, 108):
+        mapped = map_pitch(midi, preset="harp_only")
+        assert mapped.instrument == "harp"
+        assert 0 <= mapped.clicks <= 24
+
+
+def test_harp_only_octave_folding():
+    # 域内はそのまま
+    assert map_pitch(60, preset="harp_only").octave_shift == 0
+    assert map_pitch(60, preset="harp_only").clicks == 6
+    # 低音は上に折込: A0(21) → +3 オクターブ = 57
+    low = map_pitch(21, preset="harp_only")
+    assert (low.octave_shift, low.clicks) == (3, 3)
+    # 高音は下に折込: C8(108) → -3 オクターブ = 72
+    high = map_pitch(108, preset="harp_only")
+    assert (high.octave_shift, high.clicks) == (-3, 18)
+
+
+def test_harp_only_fixture_warning_counts_folded_notes():
+    # 完了条件: シフト数が警告に出る
+    parsed = parse_score(FIXTURES / "extreme_range.mid")
+    mapped = [map_pitch(e.midi_pitch, preset="harp_only") for e in parsed.events]
+    warning = build_octave_shift_warning(mapped)
+    assert warning is not None
+    assert warning.type == "octave_shift"
+    assert "3音" in warning.message  # A0×2 + C8(C4 は域内)
+
+
+def test_harp_only_with_transpose():
+    mapped = map_pitch(53, preset="harp_only", transpose_semitones=1)  # 54 ちょうど
+    assert (mapped.instrument, mapped.clicks, mapped.octave_shift) == ("harp", 0, 0)
