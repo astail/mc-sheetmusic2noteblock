@@ -77,6 +77,30 @@ def test_recommend_tpq():
     assert recommend_tpq(135) == 4  # 同距離(150/120)は実効 BPM が高い方
 
 
+def test_90bpm_song_recommendation_and_error_stats():
+    # 90BPM 曲 → 推奨 tpq は 6(実効 100BPM。|100-90| < |75-90|)
+    assert recommend_tpq(90) == 6
+    # 推奨 tpq6 では 8分3連(1/3 ql 刻み)が誤差ゼロでグリッドに乗る
+    triplets = [_event(i / 3, midi=60 + i) for i in range(6)]
+    result = quantize_beats(triplets, ticks_per_quarter=6)
+    assert [q.tick for q in result.events] == [0, 2, 4, 6, 8, 10]
+    assert result.stats.max_error_ms < 1e-9
+    assert result.stats.moved_notes == 0
+
+    # 16分(0.25 ql)は tpq6 のグリッドに乗らず、誤差統計に正確に反映される
+    events = [
+        _event(0.0),
+        _event(0.25, midi=62),  # raw 1.5 tick → 2 に移動(誤差 0.5 tick = 50ms)
+        _event(0.5, midi=64),
+        _event(1.0, midi=65),
+    ]
+    result = quantize_beats(events, ticks_per_quarter=6)
+    assert [q.tick for q in result.events] == [0, 2, 3, 6]
+    assert result.stats.max_error_ms == 50.0
+    assert result.stats.mean_error_ms == 12.5
+    assert result.stats.moved_notes == 1
+
+
 def test_tempo_change_seconds_mode():
     # 完了条件: tempo_change.mid が seconds モードで変換できる
     parsed = parse_score(FIXTURES / "tempo_change.mid")
