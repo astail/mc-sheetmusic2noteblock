@@ -37,7 +37,7 @@ function svgMarkup(geometry) {
         .map((b) => `<circle cx="${p.x}" cy="${b.y}" r="3" class="layout-note" />`)
         .join("");
       return `
-        <g class="layout-segment" data-step-index="${p.stepIndex}" tabindex="0">
+        <g class="layout-segment" data-step-index="${p.stepIndex}">
           <title>ステップ${p.stepIndex}</title>
           ${branchLines}${noteMarks}
           <circle cx="${p.x}" cy="${busY}" r="4" class="layout-hit" />
@@ -64,29 +64,35 @@ export function initLayoutView() {
   });
 }
 
+// クリックと、キーボード(Enter/Space)の両方で onSelect を発火できるようにする。
+// SVG <g> も <article> も、ネイティブボタンと違い Enter/Space で click が
+// 発火しないため、明示的な keydown ハンドリングが必要
+function bindSelectable(el, onSelect) {
+  el.tabIndex = 0;
+  el.addEventListener("click", onSelect);
+  el.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault(); // Space によるページスクロールを防ぐ
+      onSelect();
+    }
+  });
+}
+
 function render(container, layout) {
   const geometry = computeLayoutGeometry(layout.segments);
   container.innerHTML = `<h3>配置俯瞰図</h3>${svgMarkup(geometry)}`;
 
   container.querySelectorAll(".layout-segment").forEach((el) => {
-    el.addEventListener("click", () => selectStep(container, Number(el.dataset.stepIndex)));
-    // SVG <g> は tabindex でフォーカス可能にしても、ネイティブボタンと違い
-    // Enter/Space で click が発火しないため、キーボード操作用に明示的に処理する
-    el.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault(); // Space によるページスクロールを防ぐ
-        selectStep(container, Number(el.dataset.stepIndex));
-      }
-    });
+    bindSelectable(el, () => selectStep(container, Number(el.dataset.stepIndex)));
   });
 
   // ステップカードは blueprint_view.js が同じ blueprint 更新で再生成する。
   // 購読の登録順(main.js で blueprintView → layoutView の順)により、
   // このコールバックが呼ばれる時点で最新のカードが DOM に存在する
   document.querySelectorAll(".step-card").forEach((card) => {
-    card.addEventListener("click", () => {
-      selectStep(container, Number(card.id.replace("step-", "")));
-    });
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", `ステップ${card.id.replace("step-", "")}を選択`);
+    bindSelectable(card, () => selectStep(container, Number(card.id.replace("step-", ""))));
   });
 }
 
