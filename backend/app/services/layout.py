@@ -12,10 +12,13 @@ LAYOUT_DESCRIPTION = (
 def build_layout(steps: list[Step]) -> Layout:
     segments: list[LayoutSegment] = []
     bus_offset = 0
-    for step in steps:
-        # バス上の物理位置(ブロック数)。リピーターは1〜4RTを1ブロックで表現するため
-        # tick ではなくリピーター個数の累積で距離を数える
-        bus_offset += step.repeaters.count
+    for i, step in enumerate(steps):
+        if i > 0:
+            # バス上の物理位置(ブロック数)。リピーターは1〜4RTを1ブロックで表現するが、
+            # リピーターの出力はそのまま分岐できず分岐用ダスト1ブロックを経る必要があるため、
+            # 前の分岐点からの距離は「リピーター個数 + 分岐ダスト1個」。先頭ステップは
+            # バス起点そのものなのでこの加算は不要
+            bus_offset += step.repeaters.count + 1
         # 同時発音数が多い(big_chord)ステップは片側の分岐だけでは音符ブロックが
         # 並びきらないため、両側(north/south)に分岐する
         branch_sides = ["north"] if len(step.notes) < BIG_CHORD_THRESHOLD else ["north", "south"]

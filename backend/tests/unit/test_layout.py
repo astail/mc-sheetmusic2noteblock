@@ -29,14 +29,16 @@ def _step(index: int, tick: int, delay: int, chain: list[int], note_count: int =
     )
 
 
-def test_bus_offset_accumulates_repeater_counts():
+def test_bus_offset_accounts_for_repeaters_and_branch_dust():
+    # リピーターの出力は分岐用ダスト1ブロックを経てから北/南へ分かれるため、
+    # ステップ間の物理距離は「リピーター個数 + 1」(先頭ステップだけは起点なので0)
     steps = [
-        _step(0, 0, 0, []),  # 先頭は delay=0 → リピーターなし
-        _step(1, 7, 7, [4, 3]),  # +2個
-        _step(2, 11, 4, [4]),  # +1個
+        _step(0, 0, 0, []),  # 起点。加算なし
+        _step(1, 7, 7, [4, 3]),  # count=2 → +3(=2+1)
+        _step(2, 11, 4, [4]),  # count=1 → +2(=1+1)
     ]
     layout = build_layout(steps)
-    assert [s.bus_offset_blocks for s in layout.segments] == [0, 2, 3]
+    assert [s.bus_offset_blocks for s in layout.segments] == [0, 3, 5]
     assert [s.step_index for s in layout.segments] == [0, 1, 2]
 
 
