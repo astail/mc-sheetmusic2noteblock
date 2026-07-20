@@ -12,11 +12,16 @@ services:
       - OMR_SERVICE_URL=http://omr:8080
       - REPEATER_WARNING_THRESHOLD=${REPEATER_WARNING_THRESHOLD:-300}
 
-  # omr サービスの枠のみ定義(ビルドは Phase 4)。--profile omr 指定時のみ起動
+  # Audiveris は公式 Linux 配布物が amd64 のみ。ARM ホストでは Docker の
+  # linux/amd64 エミュレーションを利用する。
   omr:
     build: ./omr
+    platform: linux/amd64
     profiles: ["omr"]
     volumes:
       - ./data:/data
+    environment:
+      - AUDIVERIS_MIN_HEAP=${AUDIVERIS_MIN_HEAP:-512m}
+      - AUDIVERIS_MAX_HEAP=${AUDIVERIS_MAX_HEAP:-8G}
     expose:
       - "8080"
