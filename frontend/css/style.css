@@ -386,13 +386,15 @@ body {
   font-size: 1rem;
 }
 
-.layout-svg {
-  width: 100%;
-  max-width: 100%;
-  height: auto;
+.layout-svg-wrapper {
+  overflow-x: auto;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 6px;
+}
+
+.layout-svg {
+  display: block;
 }
 
 .layout-bus,

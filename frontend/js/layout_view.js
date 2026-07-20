@@ -44,7 +44,10 @@ function svgMarkup(geometry) {
         </g>`;
     })
     .join("");
-  return `<svg viewBox="0 0 ${width} ${height}" class="layout-svg" role="img" aria-label="配置俯瞰図">${busLine}${groups}</svg>`;
+  // width/height を明示指定し等倍で描画する(width:100% 等で縮小すると、
+  // バスが長い曲でブロック間隔・クリック対象が潰れて操作不能になるため)。
+  // コンテナ側は overflow-x: auto で横スクロールさせる
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="layout-svg" role="img" aria-label="配置俯瞰図">${busLine}${groups}</svg>`;
 }
 
 export function initLayoutView() {
@@ -80,7 +83,7 @@ function bindSelectable(el, onSelect) {
 
 function render(container, layout) {
   const geometry = computeLayoutGeometry(layout.segments);
-  container.innerHTML = `<h3>配置俯瞰図</h3>${svgMarkup(geometry)}`;
+  container.innerHTML = `<h3>配置俯瞰図</h3><div class="layout-svg-wrapper">${svgMarkup(geometry)}</div>`;
 
   container.querySelectorAll(".layout-segment").forEach((el) => {
     bindSelectable(el, () => selectStep(container, Number(el.dataset.stepIndex)));
