@@ -7,6 +7,7 @@
 
 from collections import defaultdict
 
+from app import config
 from app.models.blueprint import (
     Meta,
     NotePlacement,
@@ -22,7 +23,7 @@ from app.services.pitch_mapper import map_pitch
 from app.services.quantizer import QuantizedEvent
 
 TICK_SECONDS = 0.1
-# 同時発音がこの数以上の Step は big_chord 警告(配線ガイドの詳細は issue #39)
+# 同時発音がこの数以上の Step は big_chord 警告
 BIG_CHORD_THRESHOLD = 5
 
 _NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -50,7 +51,7 @@ def build_blueprint_parts(
     preset: str = "bass_harp_bell",
     transpose_semitones: int = 0,
 ) -> tuple[Meta, list[Step], list[Warning]]:
-    """Step 列・meta・警告(big_chord / octave_shift)を組み立てる。
+    """Step 列・meta・警告(big_chord / octave_shift / repeater_limit)を組み立てる。
 
     hands は quantized と同順で渡すこと。quantizer は入力イベントを並べ替え・デデュープ
     するため、パース順の events から作った hands は使えない。量子化後に
@@ -141,8 +142,23 @@ def build_blueprint_parts(
         warnings.append(
             Warning(
                 type="big_chord",
-                message=f"ステップ{index}は同時{count}音です。分岐ダストを両側に伸ばす配線を推奨",
+                message=(
+                    f"ステップ{index}は同時{count}音です。主バスから分岐ダストを"
+                    "南北（±Z）の両側に伸ばし、音符ブロックを振り分けて配線してください"
+                ),
                 steps=[index],
+            )
+        )
+    total_repeaters = sum(step.repeaters.count for step in steps)
+    if total_repeaters > config.REPEATER_WARNING_THRESHOLD:
+        warnings.append(
+            Warning(
+                type="repeater_limit",
+                message=(
+                    f"リピーター総数は{total_repeaters}個で、設定閾値の"
+                    f"{config.REPEATER_WARNING_THRESHOLD}個を超えています。"
+                    "曲を分割して複数の演奏装置に分けることを推奨します"
+                ),
             )
         )
     if merged_after_mapping:

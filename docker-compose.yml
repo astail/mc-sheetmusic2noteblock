@@ -10,6 +10,7 @@ services:
     environment:
       - DATA_DIR=/data
       - OMR_SERVICE_URL=http://omr:8080
+      - REPEATER_WARNING_THRESHOLD=${REPEATER_WARNING_THRESHOLD:-300}
 
   # omr サービスの枠のみ定義(ビルドは Phase 4)。--profile omr 指定時のみ起動
   omr:

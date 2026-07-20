@@ -285,7 +285,8 @@ body {
 }
 
 .warning-item--octave_shift,
-.warning-item--big_chord {
+.warning-item--big_chord,
+.warning-item--repeater_limit {
   border-left-color: #c8701d;
 }
 
