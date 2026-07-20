@@ -35,7 +35,8 @@ MusicXML export は動作しますが、歌詞などの文字認識には Tesser
 公式 5.11.0 の小さなサンプル画像を使い、build、CLI、実際の MusicXML export、
 compose の healthcheck、2 秒未満の graceful stop、専用 Compose project の完全な
 cleanup を一括確認できます。検証は PID を含む一意な project 名で実行されるため、
-同じ checkout で起動中の通常の `omr` service には影響しません。
+同じ checkout で起動中の通常の `omr` service や image には影響しません。検証用の
+container、network、image は完了時にすべて削除されます。
 
 ```bash
 ./omr/validate.sh

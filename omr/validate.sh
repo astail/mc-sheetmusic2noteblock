@@ -18,7 +18,7 @@ validation_name=".omr-validation-$$"
 validation_dir="${repo_dir}/data/${validation_name}"
 
 cleanup() {
-    compose down --remove-orphans >/dev/null 2>&1 || true
+    compose down --remove-orphans --rmi local >/dev/null 2>&1 || true
     rm -rf "${validation_dir}"
 }
 trap cleanup EXIT INT TERM
@@ -64,8 +64,10 @@ test -z "$(docker ps --all --quiet \
     --filter "label=com.docker.compose.project=${project_name}")"
 test -z "$(docker network ls --quiet \
     --filter "label=com.docker.compose.project=${project_name}")"
+test -z "$(docker image ls --quiet \
+    --filter "reference=${project_name}-*")"
 
 trap - EXIT INT TERM
 
 echo "Graceful stop completed in ${stop_elapsed_ms} ms with exit code ${exit_code}."
-echo "OMR image build, CLI export, compose health, graceful stop and cleanup checks passed."
+echo "OMR build, export, health, graceful stop and container/network/image cleanup checks passed."
