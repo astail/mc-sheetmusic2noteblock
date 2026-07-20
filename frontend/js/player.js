@@ -114,7 +114,9 @@ export function initPlayer() {
     limiter = createLimiter(audioContext);
     limiter.connect(audioContext.destination);
     currentStepIndex = 0;
-    nextStepTime = audioContext.currentTime + START_DELAY_SECONDS;
+    // 先頭ステップが曲頭(tick 0)から遅れている場合(ピックアップ小節等)も反映する
+    nextStepTime =
+      audioContext.currentTime + START_DELAY_SECONDS + scheduleTime(blueprint.steps[0].tick, rate());
     highlightQueue = [];
     scheduler();
     schedulerTimer = setInterval(scheduler, SCHEDULER_INTERVAL_MS);
