@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 
 def main() -> None:
     input_path = Path(sys.argv[1])
+    endpoint = sys.argv[2] if len(sys.argv) > 2 else "http://127.0.0.1:8080/transcribe"
     boundary = f"----omr-validation-{secrets.token_hex(12)}"
     body = (
         f"--{boundary}\r\n"
@@ -16,7 +17,7 @@ def main() -> None:
         "Content-Type: image/png\r\n\r\n"
     ).encode() + input_path.read_bytes() + f"\r\n--{boundary}--\r\n".encode()
     request = Request(
-        "http://127.0.0.1:8080/transcribe",
+        endpoint,
         data=body,
         headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
         method="POST",

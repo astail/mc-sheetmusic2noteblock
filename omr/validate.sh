@@ -94,6 +94,7 @@ test "${exit_code}" -eq 0
 
 active_workspace_dir="${validation_dir}/active-workspaces"
 mkdir -p "${active_workspace_dir}"
+active_port=18080
 active_id="$(docker run --detach \
     --name "${active_container}" \
     --env AUDIVERIS_COMMAND=/test/fake_audiveris.py \
@@ -101,6 +102,7 @@ active_id="$(docker run --detach \
     --env FAKE_AUDIVERIS_PID=/validation/fake.pid \
     --env FAKE_AUDIVERIS_STARTED=/validation/fake-started \
     --env FAKE_AUDIVERIS_TERM_MARKER=/validation/fake-term \
+    --env OMR_PORT="${active_port}" \
     --env TMPDIR=/validation/active-workspaces \
     --volume "${repo_dir}/omr/tests/fake_audiveris.py:/test/fake_audiveris.py:ro" \
     --volume "${validation_dir}:/validation" \
@@ -121,7 +123,9 @@ active_client_id="$(docker run --detach \
     --volume "${repo_dir}/omr/tests/http_client.py:/test/http_client.py:ro" \
     --volume "${validation_dir}/allegretto.png:/test/allegretto.png:ro" \
     "${project_name}-omr" \
-    /test/http_client.py /test/allegretto.png)"
+    /test/http_client.py \
+    /test/allegretto.png \
+    "http://127.0.0.1:${active_port}/transcribe")"
 test -n "${active_client_id}"
 
 attempt=0
