@@ -4,15 +4,21 @@ set -eu
 repo_dir="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "${repo_dir}"
 
+project_name="omr-validation-$$"
+
 compose() {
-    docker compose --profile omr "$@"
+    docker compose --project-name "${project_name}" --profile omr "$@"
+}
+
+monotonic_ns() {
+    python3 -c 'import time; print(time.monotonic_ns())'
 }
 
 validation_name=".omr-validation-$$"
 validation_dir="${repo_dir}/data/${validation_name}"
 
 cleanup() {
-    compose rm --stop --force omr >/dev/null 2>&1 || true
+    compose down --remove-orphans >/dev/null 2>&1 || true
     rm -rf "${validation_dir}"
 }
 trap cleanup EXIT INT TERM
@@ -43,4 +49,23 @@ test -n "${container_id}"
 status="$(docker inspect --format '{{.State.Health.Status}}' "${container_id}")"
 test "${status}" = "healthy"
 
-echo "OMR image build, CLI export and compose health checks passed."
+stop_started_ns="$(monotonic_ns)"
+docker stop --timeout 2 "${container_id}" >/dev/null
+stop_finished_ns="$(monotonic_ns)"
+stop_elapsed_ms="$(((stop_finished_ns - stop_started_ns) / 1000000))"
+exit_code="$(docker inspect --format '{{.State.ExitCode}}' "${container_id}")"
+
+test "${stop_elapsed_ms}" -lt 2000
+test "${exit_code}" -eq 0
+
+cleanup
+
+test -z "$(docker ps --all --quiet \
+    --filter "label=com.docker.compose.project=${project_name}")"
+test -z "$(docker network ls --quiet \
+    --filter "label=com.docker.compose.project=${project_name}")"
+
+trap - EXIT INT TERM
+
+echo "Graceful stop completed in ${stop_elapsed_ms} ms with exit code ${exit_code}."
+echo "OMR image build, CLI export, compose health, graceful stop and cleanup checks passed."

@@ -33,7 +33,9 @@ MusicXML export は動作しますが、歌詞などの文字認識には Tesser
 ## 検証
 
 公式 5.11.0 の小さなサンプル画像を使い、build、CLI、実際の MusicXML export、
-compose の healthcheck を一括確認できます。
+compose の healthcheck、2 秒未満の graceful stop、専用 Compose project の完全な
+cleanup を一括確認できます。検証は PID を含む一意な project 名で実行されるため、
+同じ checkout で起動中の通常の `omr` service には影響しません。
 
 ```bash
 ./omr/validate.sh
@@ -49,7 +51,7 @@ compose の healthcheck を一括確認できます。
 - 公式 Linux 配布物は x86_64 のみです。compose は `linux/amd64` を明示しており、
   ARM ホストではエミュレーションが必要です。
 - amd64 検証環境では `docker image inspect issue-40-omr:latest
-  --format '{{.Size}}'` が 204,427,368 bytes（約 195 MiB）でした。同じ image でも
+  --format '{{.Size}}'` が 204,427,493 bytes（約 195 MiB）でした。同じ image でも
   Docker 29 の `docker image ls` は共有レイヤー込みで 767 MB、
   `docker system df -v` は shared 426 MB / unique 340.8 MB と表示します。
   ストレージドライバーと共有レイヤーの計上方法で値が異なるため、ディスク使用量は
