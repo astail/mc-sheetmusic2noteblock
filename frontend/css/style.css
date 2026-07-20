@@ -25,7 +25,9 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   line-height: 1.6;
-  /* 下部固定の再生バーに隠れないように余白を確保 */
+  /* 下部固定の再生バーに隠れないように余白を確保。
+     実際の高さは player.js が ResizeObserver で実測して上書きする
+     (狭い画面で再生バーが折り返して高くなるケースに追従するため) */
   padding-bottom: 72px;
 }
 
@@ -343,4 +345,37 @@ body {
 .step-note-source {
   font-size: 0.8rem;
   color: var(--color-muted);
+}
+
+/* 再生バー(画面下部固定) */
+.player-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.player-bar button {
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.player-bar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.player-rate,
+.player-solo {
+  font-size: 0.9rem;
+  color: var(--color-muted);
+}
+
+/* 再生中の現在ステップハイライト */
+.step-card--active {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
