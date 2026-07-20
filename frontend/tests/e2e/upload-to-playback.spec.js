@@ -60,8 +60,11 @@ test("upload twinkle.mid -> generate blueprint -> play with no console errors", 
   expect(noteClassNames.some((c) => c.includes("step-note--right"))).toBe(true);
   expect(noteClassNames.some((c) => c.includes("step-note--left"))).toBe(true);
 
-  // 4. 再生ボタンまで自動操作
+  // 4. 再生ボタンまで自動操作。実際に再生が始まったこと(停止/一時停止ボタンが
+  // 有効化されること)まで確認し、クリックだけして何も起きない回帰を検出する
   await page.locator("#play-button").click();
+  await expect(page.locator("#stop-button")).toBeEnabled();
+  await expect(page.locator("#pause-button")).toBeEnabled();
   await page.waitForTimeout(500);
 
   expect(consoleErrors).toEqual([]);
