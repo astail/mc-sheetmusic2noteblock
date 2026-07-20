@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+exec "${JAVA_HOME}/bin/java" \
+    -Djpackage.app-version=5.11.0 \
+    --add-exports=java.desktop/sun.awt.image=ALL-UNNAMED \
+    --enable-native-access=ALL-UNNAMED \
+    -Dsun.java2d.uiScale.enabled=true \
+    -Dfile.encoding=UTF-8 \
+    "-Xms${AUDIVERIS_MIN_HEAP:-512m}" \
+    "-Xmx${AUDIVERIS_MAX_HEAP:-8G}" \
+    -cp "${AUDIVERIS_HOME:-/opt/audiveris}/lib/app/*" \
+    Audiveris \
+    "$@"
