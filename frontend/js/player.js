@@ -50,6 +50,9 @@ export function initPlayer() {
   let highlightQueue = []; // [{stepIndex, time}] 未ハイライトの発音予定
   let rafId = null;
   let highlightedEl = null;
+  // finishPlayback() が減衰待ちで閉じ遅延させている AudioContext。
+  // 次の stop() で取りこぼさず閉じられるよう保持しておく
+  const pendingTailContexts = new Set();
 
   function rate() {
     return rateCheckbox.checked ? 0.5 : 1;
@@ -152,12 +155,16 @@ export function initPlayer() {
     updateButtons();
   }
 
-  // ユーザーが「■ 停止」を押した場合: 即座に無音化する
+  // ユーザーが「■ 停止」を押した場合: 即座に無音化する。
+  // 前回再生の末尾ノート(bell の減衰待ちで閉じ遅延中の AudioContext)が
+  // 残っていれば、取りこぼして鳴り続けないようそれも一緒に閉じる
   function stop() {
     const ctx = audioContext;
     audioContext = null;
     resetUiState();
     if (ctx) ctx.close();
+    for (const tailCtx of pendingTailContexts) tailCtx.close();
+    pendingTailContexts.clear();
   }
 
   // 最後のステップまで表示し終えた場合: 末尾ノート(最長 bell の減衰)が
@@ -166,7 +173,11 @@ export function initPlayer() {
     const ctx = audioContext;
     audioContext = null;
     resetUiState();
-    setTimeout(() => ctx.close(), MAX_NOTE_DURATION_SECONDS * 1000);
+    pendingTailContexts.add(ctx);
+    setTimeout(() => {
+      pendingTailContexts.delete(ctx);
+      ctx.close();
+    }, MAX_NOTE_DURATION_SECONDS * 1000);
   }
 
   function updateButtons() {
