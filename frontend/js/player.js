@@ -118,6 +118,12 @@ export function initPlayer() {
     rafId = requestAnimationFrame(highlightLoop);
   }
 
+  // finishPlayback() が減衰待ちで保持している AudioContext を即座に閉じる
+  function closePendingTails() {
+    for (const tailCtx of pendingTailContexts) tailCtx.close();
+    pendingTailContexts.clear();
+  }
+
   function play() {
     if (audioContext) {
       audioContext.resume().then(updateButtons); // resume は非同期のため解決後に反映
@@ -125,6 +131,7 @@ export function initPlayer() {
     }
     const blueprint = getState().blueprint;
     if (!blueprint || blueprint.steps.length === 0) return;
+    closePendingTails(); // 前回再生の余韻が残っていれば新しい再生の頭に被らないよう閉じる
     audioContext = new AudioContext();
     limiter = createLimiter(audioContext);
     limiter.connect(audioContext.destination);
@@ -163,8 +170,7 @@ export function initPlayer() {
     audioContext = null;
     resetUiState();
     if (ctx) ctx.close();
-    for (const tailCtx of pendingTailContexts) tailCtx.close();
-    pendingTailContexts.clear();
+    closePendingTails();
   }
 
   // 最後のステップまで表示し終えた場合: 末尾ノート(最長 bell の減衰)が
