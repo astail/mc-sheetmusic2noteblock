@@ -49,87 +49,97 @@ class _RequestTooLarge(MultiPartException):
 
 
 class AudiverisRunner:
-    """Serialize Audiveris invocations and own the active process group."""
+    """Admit one Audiveris invocation and own its process group."""
 
     def __init__(self) -> None:
-        self._execution_lock = asyncio.Lock()
-        self._process_lock = asyncio.Lock()
+        self._state_lock = asyncio.Lock()
         self._process: asyncio.subprocess.Process | None = None
         self._accepting = True
+        self._busy = False
 
-    def start(self) -> None:
-        self._accepting = True
+    async def start(self) -> None:
+        async with self._state_lock:
+            self._accepting = True
+            self._busy = False
+
+    async def admit(self) -> None:
+        """Atomically reserve the sole execution slot without queueing."""
+        async with self._state_lock:
+            if not self._accepting:
+                raise ApiError(503, "SERVICE_UNAVAILABLE", "The OMR service is shutting down.")
+            if self._busy:
+                raise ApiError(503, "SERVICE_BUSY", "The OMR service is busy.")
+            self._busy = True
+
+    async def release(self) -> None:
+        async with self._state_lock:
+            self._busy = False
 
     async def stop(self) -> None:
-        self._accepting = False
-        async with self._process_lock:
+        async with self._state_lock:
+            self._accepting = False
             process = self._process
         if process is not None:
             await _terminate_process_group(process)
 
     async def run(self, input_path: Path, output_dir: Path, log_path: Path) -> None:
-        if not self._accepting:
-            raise ApiError(503, "SERVICE_UNAVAILABLE", "The OMR service is shutting down.")
+        with log_path.open("wb") as log_file:
+            async with self._state_lock:
+                if not self._accepting:
+                    raise ApiError(503, "SERVICE_UNAVAILABLE", "The OMR service is shutting down.")
+                if not self._busy:
+                    raise RuntimeError("Audiveris execution was not admitted")
 
-        async with self._execution_lock:
-            if not self._accepting:
-                raise ApiError(503, "SERVICE_UNAVAILABLE", "The OMR service is shutting down.")
-
-            command = os.environ.get("AUDIVERIS_COMMAND", "Audiveris")
-            if not command or "\x00" in command:
-                raise RuntimeError("AUDIVERIS_COMMAND is invalid")
-            timeout = _positive_float_env("OMR_TRANSCRIBE_TIMEOUT_SECONDS", 300.0)
-
-            with log_path.open("wb") as log_file:
-                async with self._process_lock:
-                    if not self._accepting:
-                        raise ApiError(503, "SERVICE_UNAVAILABLE", "The OMR service is shutting down.")
-                    try:
-                        process = await asyncio.create_subprocess_exec(
-                            command,
-                            "-batch",
-                            "-export",
-                            "-output",
-                            str(output_dir),
-                            "--",
-                            str(input_path),
-                            stdin=asyncio.subprocess.DEVNULL,
-                            stdout=log_file,
-                            stderr=asyncio.subprocess.STDOUT,
-                            start_new_session=True,
-                        )
-                    except OSError as exc:
-                        LOGGER.exception("Unable to start Audiveris")
-                        raise ApiError(
-                            502,
-                            "TRANSCRIPTION_FAILED",
-                            "The score could not be transcribed.",
-                        ) from exc
-                    self._process = process
+                command = os.environ.get("AUDIVERIS_COMMAND", "Audiveris")
+                if not command or "\x00" in command:
+                    raise RuntimeError("AUDIVERIS_COMMAND is invalid")
+                timeout = _positive_float_env("OMR_TRANSCRIBE_TIMEOUT_SECONDS", 300.0)
                 try:
-                    return_code = await asyncio.wait_for(process.wait(), timeout=timeout)
-                except TimeoutError as exc:
-                    await _terminate_process_group(process)
+                    process = await asyncio.create_subprocess_exec(
+                        command,
+                        "-batch",
+                        "-export",
+                        "-output",
+                        str(output_dir),
+                        "--",
+                        str(input_path),
+                        stdin=asyncio.subprocess.DEVNULL,
+                        stdout=log_file,
+                        stderr=asyncio.subprocess.STDOUT,
+                        start_new_session=True,
+                    )
+                except OSError as exc:
+                    LOGGER.exception("Unable to start Audiveris")
                     raise ApiError(
-                        504,
-                        "TRANSCRIPTION_TIMEOUT",
-                        "The transcription timed out.",
+                        502,
+                        "TRANSCRIPTION_FAILED",
+                        "The score could not be transcribed.",
                     ) from exc
-                except asyncio.CancelledError:
-                    await _terminate_process_group(process)
-                    raise
-                finally:
-                    async with self._process_lock:
-                        if self._process is process:
-                            self._process = None
-
-            if return_code != 0:
-                LOGGER.error("Audiveris exited with status %d", return_code)
+                self._process = process
+            try:
+                return_code = await asyncio.wait_for(process.wait(), timeout=timeout)
+            except TimeoutError as exc:
+                await _terminate_process_group(process)
                 raise ApiError(
-                    502,
-                    "TRANSCRIPTION_FAILED",
-                    "The score could not be transcribed.",
-                )
+                    504,
+                    "TRANSCRIPTION_TIMEOUT",
+                    "The transcription timed out.",
+                ) from exc
+            except asyncio.CancelledError:
+                await _terminate_process_group(process)
+                raise
+            finally:
+                async with self._state_lock:
+                    if self._process is process:
+                        self._process = None
+
+        if return_code != 0:
+            LOGGER.error("Audiveris exited with status %d", return_code)
+            raise ApiError(
+                502,
+                "TRANSCRIPTION_FAILED",
+                "The score could not be transcribed.",
+            )
 
 
 def _positive_float_env(name: str, default: float) -> float:
@@ -291,7 +301,7 @@ runner = AudiverisRunner()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    runner.start()
+    await runner.start()
     yield
     await runner.stop()
 
@@ -317,26 +327,30 @@ async def healthz() -> dict[str, str]:
 
 @app.post("/transcribe", response_class=FileResponse)
 async def transcribe(request: Request) -> FileResponse:
-    upload = await _one_upload(request)
-    extension = Path(upload.filename or "").suffix.lower()
-    if extension not in ALLOWED_EXTENSIONS:
-        await upload.close()
-        raise ApiError(415, "UNSUPPORTED_FILE", "The uploaded file is not a supported PDF or image.")
-
-    work_dir = Path(tempfile.mkdtemp(prefix="omr-request-"))
+    await runner.admit()
     try:
-        input_path = work_dir / f"input{extension}"
-        output_dir = work_dir / "output"
-        output_dir.mkdir()
-        await _store_upload(upload, input_path, extension)
-        await runner.run(input_path, output_dir, work_dir / "audiveris.log")
-        mxl_path = _find_valid_mxl(output_dir)
-        return FileResponse(
-            mxl_path,
-            media_type=MXL_MEDIA_TYPE,
-            filename="transcription.mxl",
-            background=BackgroundTask(shutil.rmtree, work_dir, True),
-        )
-    except BaseException:
-        shutil.rmtree(work_dir, ignore_errors=True)
-        raise
+        upload = await _one_upload(request)
+        extension = Path(upload.filename or "").suffix.lower()
+        if extension not in ALLOWED_EXTENSIONS:
+            await upload.close()
+            raise ApiError(415, "UNSUPPORTED_FILE", "The uploaded file is not a supported PDF or image.")
+
+        work_dir = Path(tempfile.mkdtemp(prefix="omr-request-", dir=os.environ.get("TMPDIR")))
+        try:
+            input_path = work_dir / f"input{extension}"
+            output_dir = work_dir / "output"
+            output_dir.mkdir()
+            await _store_upload(upload, input_path, extension)
+            await runner.run(input_path, output_dir, work_dir / "audiveris.log")
+            mxl_path = _find_valid_mxl(output_dir)
+            return FileResponse(
+                mxl_path,
+                media_type=MXL_MEDIA_TYPE,
+                filename="transcription.mxl",
+                background=BackgroundTask(shutil.rmtree, work_dir, True),
+            )
+        except BaseException:
+            shutil.rmtree(work_dir, ignore_errors=True)
+            raise
+    finally:
+        await runner.release()

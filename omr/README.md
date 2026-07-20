@@ -1,7 +1,8 @@
 # Audiveris OMR コンテナ
 
 PDF・楽譜画像を MusicXML に変換する Audiveris の HTTP サービスです。既定起動では
-FastAPI/Uvicorn が 8080 番ポートで待ち受け、Audiveris の実行は常に1件ずつ直列化します。
+FastAPI/Uvicorn が 8080 番ポートで待ち受けます。同時に受け付ける変換は1件だけで、
+実行中の追加リクエストはアップロードを解析せず `SERVICE_BUSY` の 503 を即時返却します。
 
 ## 起動
 
@@ -43,6 +44,9 @@ curl --fail --form file=@score.png \
 - `OMR_GRACEFUL_SHUTDOWN_SECONDS`（既定 3 秒）
 - `AUDIVERIS_MIN_HEAP` / `AUDIVERIS_MAX_HEAP`（Java ヒープ）
 
+Compose の `stop_grace_period` は、Uvicorn の3秒と子プロセスの2秒にcleanupの余裕を
+加えた10秒です。
+
 既存のCLIも、コマンドを明示すれば利用できます。
 
 ```bash
@@ -58,7 +62,9 @@ MusicXML export は動作しますが、歌詞などの文字認識には Tesser
 
 公式 5.11.0 の小さなサンプル画像を使い、build、単体テスト、HTTP 経由の MusicXML export、
 MXL ZIP 検証、compose の healthcheck、graceful stop、専用 Compose project の完全な
-cleanup を一括確認できます。検証は PID を含む一意な project 名で実行されるため、
+cleanup に加え、TERM を無視する実行中の fake Audiveris が wrapper の TERM→KILL で
+終了して一時workspaceが空になることを一括確認できます。検証は PID を含む一意な
+project 名で実行されるため、
 同じ checkout で起動中の通常の `omr` service や image には影響しません。検証用の
 container、network、image は完了時にすべて削除されます。
 

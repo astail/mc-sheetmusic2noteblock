@@ -5,6 +5,8 @@ repo_dir="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "${repo_dir}"
 
 project_name="omr-validation-$(date +%s)-$$"
+active_container="${project_name}-active"
+active_client="${project_name}-client"
 
 compose() {
     docker compose --project-name "${project_name}" --profile omr "$@"
@@ -18,6 +20,7 @@ validation_name=".omr-validation-$$"
 validation_dir="${repo_dir}/data/${validation_name}"
 
 cleanup() {
+    docker rm --force "${active_client}" "${active_container}" >/dev/null 2>&1 || true
     compose down --remove-orphans --rmi local >/dev/null 2>&1 || true
     docker image rm "${project_name}-unit" >/dev/null 2>&1 || true
     rm -rf "${validation_dir}"
@@ -89,6 +92,62 @@ exit_code="$(docker inspect --format '{{.State.ExitCode}}' "${container_id}")"
 test "${stop_elapsed_ms}" -lt 2000
 test "${exit_code}" -eq 0
 
+active_workspace_dir="${validation_dir}/active-workspaces"
+mkdir -p "${active_workspace_dir}"
+active_id="$(docker run --detach \
+    --name "${active_container}" \
+    --env AUDIVERIS_COMMAND=/test/fake_audiveris.py \
+    --env FAKE_AUDIVERIS_MODE=hang \
+    --env FAKE_AUDIVERIS_PID=/validation/fake.pid \
+    --env FAKE_AUDIVERIS_STARTED=/validation/fake-started \
+    --env FAKE_AUDIVERIS_TERM_MARKER=/validation/fake-term \
+    --env TMPDIR=/validation/active-workspaces \
+    --volume "${repo_dir}/omr/tests/fake_audiveris.py:/test/fake_audiveris.py:ro" \
+    --volume "${validation_dir}:/validation" \
+    "${project_name}-omr")"
+test -n "${active_id}"
+
+attempt=0
+until docker exec "${active_container}" /usr/local/bin/omr-healthcheck >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    test "${attempt}" -lt 120
+    sleep 0.25
+done
+
+active_client_id="$(docker run --detach \
+    --name "${active_client}" \
+    --network "container:${active_id}" \
+    --entrypoint python3 \
+    --volume "${repo_dir}/omr/tests/http_client.py:/test/http_client.py:ro" \
+    --volume "${validation_dir}/allegretto.png:/test/allegretto.png:ro" \
+    "${project_name}-omr" \
+    /test/http_client.py /test/allegretto.png)"
+test -n "${active_client_id}"
+
+attempt=0
+until test -s "${validation_dir}/fake.pid"; do
+    attempt=$((attempt + 1))
+    test "${attempt}" -lt 120
+    sleep 0.25
+done
+fake_pid="$(cat "${validation_dir}/fake.pid")"
+docker exec "${active_container}" kill -0 "${fake_pid}"
+
+active_stop_started_ns="$(monotonic_ns)"
+docker stop --timeout 10 "${active_container}" >/dev/null
+active_stop_finished_ns="$(monotonic_ns)"
+active_stop_elapsed_ms="$(((active_stop_finished_ns - active_stop_started_ns) / 1000000))"
+active_exit_code="$(docker inspect --format '{{.State.ExitCode}}' "${active_container}")"
+
+test "${active_stop_elapsed_ms}" -lt 10000
+test "${active_exit_code}" -eq 0
+test -e "${validation_dir}/fake-term"
+timeout 10 docker wait "${active_client}" >/dev/null
+test "$(docker inspect --format '{{.State.Running}}' "${active_client}")" = "false"
+test -z "$(find "${active_workspace_dir}" -mindepth 1 -maxdepth 1 -print -quit)"
+
+docker rm "${active_client}" "${active_container}" >/dev/null
+
 cleanup
 
 test -z "$(docker ps --all --quiet \
@@ -97,8 +156,11 @@ test -z "$(docker network ls --quiet \
     --filter "label=com.docker.compose.project=${project_name}")"
 test -z "$(docker image ls --quiet \
     --filter "reference=${project_name}-*")"
+test -z "$(docker ps --all --quiet --filter "name=^/${active_container}$")"
+test -z "$(docker ps --all --quiet --filter "name=^/${active_client}$")"
 
 trap - EXIT INT TERM
 
 echo "Graceful stop completed in ${stop_elapsed_ms} ms with exit code ${exit_code}."
+echo "Active-request stop completed in ${active_stop_elapsed_ms} ms with exit code ${active_exit_code}."
 echo "OMR unit tests, HTTP export, health, graceful stop and container/network/image cleanup checks passed."

@@ -10,6 +10,11 @@ import time
 import zipfile
 
 
+def ignore_term(_signum, _frame) -> None:
+    if marker := os.environ.get("FAKE_AUDIVERIS_TERM_MARKER"):
+        Path(marker).touch()
+
+
 def write_mxl(path: Path) -> None:
     container = """<?xml version="1.0" encoding="UTF-8"?>
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
@@ -35,27 +40,25 @@ def main() -> int:
     if trace_path:
         with Path(trace_path).open("a", encoding="utf-8") as trace:
             trace.write(json.dumps({"args": args, "input": str(input_path), "output": str(output_dir)}) + "\n")
+    if started_path := os.environ.get("FAKE_AUDIVERIS_STARTED"):
+        Path(started_path).write_text(str(os.getpid()), encoding="ascii")
 
     mode = os.environ.get("FAKE_AUDIVERIS_MODE", "success")
     if mode == "fail":
         print("private fake failure details", file=sys.stderr)
         return 9
     if mode == "hang":
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, ignore_term)
         if pid_path := os.environ.get("FAKE_AUDIVERIS_PID"):
             Path(pid_path).write_text(str(os.getpid()), encoding="ascii")
         time.sleep(60)
-    if mode == "guard":
-        guard = Path(os.environ["FAKE_AUDIVERIS_GUARD"])
-        try:
-            descriptor = os.open(guard, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            return 23
-        os.close(descriptor)
-        try:
-            time.sleep(0.15)
-        finally:
-            guard.unlink(missing_ok=True)
+    if mode == "blocking":
+        release = Path(os.environ["FAKE_AUDIVERIS_RELEASE"])
+        deadline = time.monotonic() + 10
+        while not release.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        if not release.exists():
+            return 24
     if mode == "missing":
         return 0
     if mode == "invalid":

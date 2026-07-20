@@ -46,7 +46,8 @@ RUN set -eux; \
     ln -s /usr/local/bin/Audiveris /opt/audiveris/bin/Audiveris
 
 COPY requirements.txt /tmp/omr-requirements.txt
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
+RUN set -eux; \
+    python3 -m pip install --break-system-packages --no-cache-dir \
         --requirement /tmp/omr-requirements.txt; \
     rm /tmp/omr-requirements.txt
 
@@ -61,7 +62,8 @@ FROM base AS test
 
 COPY requirements-dev.txt /tmp/omr-requirements-dev.txt
 COPY tests /tests
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
+RUN set -eux; \
+    python3 -m pip install --break-system-packages --no-cache-dir \
         --requirement /tmp/omr-requirements-dev.txt; \
     rm /tmp/omr-requirements-dev.txt
 

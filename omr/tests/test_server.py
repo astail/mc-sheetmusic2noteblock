@@ -4,10 +4,12 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
+import time
 
 import pytest
 from fastapi.testclient import TestClient
 
+import wrapper.server as server
 from wrapper.server import (
     MAX_MULTIPART_OVERHEAD_BYTES,
     MAX_UPLOAD_BYTES,
@@ -209,13 +211,50 @@ def test_timeout_kills_the_process_group(
         os.kill(pid, 0)
 
 
-def test_audiveris_executions_are_serialized(
+def test_busy_request_is_rejected_before_upload_or_workspace_creation(
     fake_audiveris: Path,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setenv("FAKE_AUDIVERIS_MODE", "guard")
-    monkeypatch.setenv("FAKE_AUDIVERIS_GUARD", str(tmp_path / "audiveris.lock"))
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    started = tmp_path / "started"
+    release = tmp_path / "release"
+    monkeypatch.setenv("TMPDIR", str(workspace))
+    monkeypatch.setenv("FAKE_AUDIVERIS_MODE", "blocking")
+    monkeypatch.setenv("FAKE_AUDIVERIS_STARTED", str(started))
+    monkeypatch.setenv("FAKE_AUDIVERIS_RELEASE", str(release))
+    parsed_requests = 0
+    original_one_upload = server._one_upload
+
+    async def counted_one_upload(request):
+        nonlocal parsed_requests
+        parsed_requests += 1
+        return await original_one_upload(request)
+
+    monkeypatch.setattr(server, "_one_upload", counted_one_upload)
     with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as executor:
-        responses = list(executor.map(lambda _: post_png(client), range(2)))
-    assert [response.status_code for response in responses] == [200, 200]
+        first = executor.submit(post_png, client)
+        deadline = time.monotonic() + 5
+        while not started.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert started.exists()
+        active_workspaces = list(workspace.iterdir())
+        assert len(active_workspaces) == 1
+
+        busy_started = time.monotonic()
+        second = post_png(client)
+        busy_elapsed = time.monotonic() - busy_started
+        assert second.status_code == 503
+        assert second.json() == {
+            "error": {"code": "SERVICE_BUSY", "message": "The OMR service is busy."}
+        }
+        assert busy_elapsed < 1
+        assert list(workspace.iterdir()) == active_workspaces
+        assert parsed_requests == 1
+        assert len(fake_audiveris.read_text(encoding="utf-8").splitlines()) == 1
+
+        release.touch()
+        assert first.result(timeout=5).status_code == 200
+
+    assert list(workspace.iterdir()) == []
