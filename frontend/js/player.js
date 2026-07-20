@@ -39,6 +39,14 @@ export function initPlayer() {
   const rateCheckbox = bar.querySelector("#rate-checkbox");
   const soloSelect = bar.querySelector("#solo-select");
 
+  // 狭い画面で再生バーが折り返して高くなっても本文が隠れないよう、
+  // 実測した高さで body の下余白を追従させる
+  const syncBodyPadding = () => {
+    document.body.style.paddingBottom = `${bar.offsetHeight + 16}px`;
+  };
+  new ResizeObserver(syncBodyPadding).observe(bar);
+  syncBodyPadding();
+
   let audioContext = null;
   let limiter = null;
   let currentStepIndex = 0;
