@@ -37,7 +37,8 @@ function svgMarkup(geometry) {
         .map((b) => `<circle cx="${p.x}" cy="${b.y}" r="3" class="layout-note" />`)
         .join("");
       return `
-        <g class="layout-segment" data-step-index="${p.stepIndex}">
+        <g class="layout-segment" data-step-index="${p.stepIndex}"
+           role="button" aria-label="ステップ${p.stepIndex}を選択">
           <title>ステップ${p.stepIndex}</title>
           ${branchLines}${noteMarks}
           <circle cx="${p.x}" cy="${busY}" r="4" class="layout-hit" />
@@ -46,8 +47,10 @@ function svgMarkup(geometry) {
     .join("");
   // width/height を明示指定し等倍で描画する(width:100% 等で縮小すると、
   // バスが長い曲でブロック間隔・クリック対象が潰れて操作不能になるため)。
-  // コンテナ側は overflow-x: auto で横スクロールさせる
-  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="layout-svg" role="img" aria-label="配置俯瞰図">${busLine}${groups}</svg>`;
+  // コンテナ側は overflow-x: auto で横スクロールさせる。
+  // role="img" は付けない: 付けると子の <g> がひとつの画像として扱われ、
+  // スクリーンリーダーから各セグメントの button セマンティクスが見えなくなるため
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="layout-svg">${busLine}${groups}</svg>`;
 }
 
 export function initLayoutView() {
