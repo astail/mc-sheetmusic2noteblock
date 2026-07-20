@@ -33,7 +33,9 @@ test("upload twinkle.mid -> generate blueprint -> play with no console errors", 
 
   const delayTexts = await page.locator(".step-card-delay").allTextContents();
   for (const text of delayTexts) {
-    expect(text).toMatch(/⏱/); // (a) 前ステップからの遅延・リピーター構成
+    // (a) 前ステップからの遅延・リピーター構成(個数+目盛)。
+    // 先頭ステップ(delay=0)のみ「リピーターなし」の明示表記になる
+    expect(text).toMatch(/リピーター(\d+個\(.*目盛.*\)|なし)/);
   }
 
   const noteTexts = await page.locator(".step-note-text").allTextContents();
@@ -47,10 +49,16 @@ test("upload twinkle.mid -> generate blueprint -> play with no console errors", 
   }
 
   const notes = page.locator(".step-note");
+  const noteClassNames = [];
   for (let i = 0; i < noteCount; i++) {
     const className = await notes.nth(i).getAttribute("class");
     expect(className).toMatch(/step-note--(right|left)/); // (d) 右手/左手の別
+    noteClassNames.push(className);
   }
+  // twinkle.mid は右手メロディ+左手和音の両方を含むフィクスチャ(test_hand_split.py で保証)。
+  // 全音が片手に寄っていないか(左右判別の回帰)も確認する
+  expect(noteClassNames.some((c) => c.includes("step-note--right"))).toBe(true);
+  expect(noteClassNames.some((c) => c.includes("step-note--left"))).toBe(true);
 
   // 4. 再生ボタンまで自動操作
   await page.locator("#play-button").click();
