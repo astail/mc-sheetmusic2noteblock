@@ -1,11 +1,12 @@
 """POST /api/scores の完了条件: フィクスチャを multipart で投げてサマリ JSON が返る。"""
 
+import json
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app import config
+from app import config, storage
 from app.main import app
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -31,6 +32,7 @@ def test_upload_twinkle_mid_returns_summary():
     assert body["summary"]["original_bpm"] == 100
     assert body["summary"]["midi_min"] == 41
     assert body["summary"]["midi_max"] == 69
+    assert body["summary"]["measure_count"] == 4
     assert len(body["summary"]["tracks"]) == 2
     assert body["recommended_tpq"] == 6  # 100BPM → tpq6(実効100BPM)
 
@@ -42,6 +44,7 @@ def test_upload_musicxml_returns_summary():
     assert res.status_code == 200
     body = res.json()
     assert body["summary"]["note_count"] == 8
+    assert body["summary"]["measure_count"] == 2
     assert body["recommended_tpq"] == 5  # 120BPM → tpq5(実効120BPM)
 
 
@@ -77,3 +80,28 @@ def test_upload_broken_midi_returns_422_and_cleans_up():
     # 保存物が残らない
     scores_root = Path(config.DATA_DIR) / "scores"
     assert not scores_root.exists() or list(scores_root.iterdir()) == []
+
+
+def test_get_legacy_summary_reparses_and_migrates_measure_count():
+    uploaded = _upload("twinkle.mid", (FIXTURES / "twinkle.mid").read_bytes()).json()
+    parsed_path = storage.score_dir(uploaded["score_id"]) / "parsed.json"
+    parsed_path.write_bytes(
+        (FIXTURES / "legacy_parsed_without_measure_count.json").read_bytes()
+    )
+
+    res = client.get(f"/api/scores/{uploaded['score_id']}")
+
+    assert res.status_code == 200
+    assert res.json()["summary"]["measure_count"] == 4
+    assert json.loads(parsed_path.read_text(encoding="utf-8"))["measure_count"] == 4
+
+
+def test_get_legacy_summary_with_unparseable_original_returns_404():
+    score_id = storage.create_score("broken.mid", b"not a midi file")
+    (storage.score_dir(score_id) / "parsed.json").write_bytes(
+        (FIXTURES / "legacy_parsed_without_measure_count.json").read_bytes()
+    )
+
+    res = client.get(f"/api/scores/{score_id}")
+
+    assert res.status_code == 404

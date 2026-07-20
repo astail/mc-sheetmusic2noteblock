@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app import config
+from app import config, storage
 from app.main import app
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -83,15 +83,58 @@ def test_custom_preset_returns_422_until_implemented():
     assert res.status_code == 422
 
 
-def test_measure_range_returns_422_until_implemented():
-    # 黙って全曲変換せず、#38 実装まで明示的にエラーにする
+def test_measure_range_converts_only_selected_musicxml_measure():
     score_id = _upload("scale_c_major.musicxml")
     res = client.post(
         f"/api/scores/{score_id}/blueprint",
-        json={"ticks_per_quarter": 4, "measure_range": [1, 2]},
+        json={"ticks_per_quarter": 4, "measure_range": [2, 2]},
+    )
+    assert res.status_code == 200
+    bp = res.json()
+    assert [step["tick"] for step in bp["steps"]] == [0, 4, 8, 12]
+    assert bp["meta"]["step_count"] == 4
+    notes = [note for step in bp["steps"] for note in step["notes"]]
+    assert {note["source"]["measure"] for note in notes} == {2}
+
+
+def test_measure_range_outside_score_returns_422():
+    score_id = _upload("scale_c_major.musicxml")
+    res = client.post(
+        f"/api/scores/{score_id}/blueprint",
+        json={"ticks_per_quarter": 4, "measure_range": [2, 3]},
     )
     assert res.status_code == 422
-    assert "measure_range" in res.json()["detail"]
+    assert "1〜2" in res.json()["detail"]
+
+
+def test_measure_range_rebases_midi_seconds_mode():
+    score_id = _upload("tempo_change.mid")
+    res = client.post(
+        f"/api/scores/{score_id}/blueprint",
+        json={"mode": "seconds", "measure_range": [2, 2]},
+    )
+    assert res.status_code == 200
+    assert [step["tick"] for step in res.json()["steps"]] == [0, 7, 13, 20]
+
+
+def test_measure_range_migrates_legacy_summary_before_blueprint():
+    score_id = _upload("twinkle.mid")
+    parsed_path = storage.score_dir(score_id) / "parsed.json"
+    parsed_path.write_bytes(
+        (FIXTURES / "legacy_parsed_without_measure_count.json").read_bytes()
+    )
+
+    res = client.post(
+        f"/api/scores/{score_id}/blueprint",
+        json={"ticks_per_quarter": 4, "measure_range": [4, 4]},
+    )
+
+    assert res.status_code == 200
+    notes = [note for step in res.json()["steps"] for note in step["notes"]]
+    assert {note["source"]["measure"] for note in notes} == {4}
+    migrated = storage.load_parsed(score_id)
+    assert migrated is not None
+    assert migrated.measure_count == 4
 
 
 def test_seconds_mode_on_tempo_change():

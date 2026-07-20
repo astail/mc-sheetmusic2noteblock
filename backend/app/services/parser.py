@@ -39,6 +39,7 @@ class ScoreSummary(BaseModel):
     midi_max: int | None = None
     note_count: int
     duration_ql: float
+    measure_count: int = 0
     tracks: list[TrackInfo]
 
 
@@ -90,7 +91,39 @@ def _iter_note_events(
             )
 
 
-def parse_score(path: str | Path) -> ParsedScore:
+def _measure_starts(score: m21stream.Stream) -> list[float]:
+    """複数 Part に重複する小節を時間位置でまとめ、1始まりの小節序数に使う。"""
+    return sorted(
+        {
+            float(measure.getOffsetInHierarchy(score))
+            for measure in score.recurse().getElementsByClass(m21stream.Measure)
+        }
+    )
+
+
+def _seconds_at_offset(score: m21stream.Stream, offset_ql: float) -> float:
+    """テンポマップを積分し、曲頭から指定 quarterLength までの実秒を返す。"""
+    seconds = 0.0
+    for start, end, mark in score.metronomeMarkBoundaries():
+        start_ql = float(start)
+        end_ql = float(end)
+        if offset_ql <= start_ql:
+            break
+        duration_ql = min(offset_ql, end_ql) - start_ql
+        if duration_ql > 0:
+            quarter_bpm = mark.getQuarterBPM()
+            if quarter_bpm is None:
+                raise ValueError("小節開始位置のテンポを計算できません")
+            seconds += duration_ql * 60.0 / float(quarter_bpm)
+        if offset_ql <= end_ql:
+            break
+    return seconds
+
+
+def parse_score(
+    path: str | Path,
+    measure_range: tuple[int, int] | None = None,
+) -> ParsedScore:
     path = Path(path)
     ext = path.suffix.lower()
     if ext not in SUPPORTED_EXTENSIONS:
@@ -100,6 +133,25 @@ def parse_score(path: str | Path) -> ParsedScore:
     parts = list(score.parts)
     if not parts:
         parts = [score]
+
+    measure_starts = _measure_starts(score)
+    measure_count = len(measure_starts)
+    range_start_ql = 0.0
+    range_end_ql = float(score.highestTime)
+    range_start_seconds = 0.0
+    if measure_range is not None:
+        start, end = measure_range
+        if start < 1 or start > end:
+            raise ValueError("measure_range は 1 以上かつ 開始 <= 終了 であること")
+        if end > measure_count:
+            raise ValueError(
+                f"measure_range は楽譜の小節範囲 1〜{measure_count} 内で指定してください"
+            )
+        range_start_ql = measure_starts[start - 1]
+        range_end_ql = (
+            measure_starts[end] if end < measure_count else float(score.highestTime)
+        )
+        range_start_seconds = _seconds_at_offset(score, range_start_ql)
 
     # テンポマップ適用後の実秒(seconds モード用)。flatten は同一要素を参照するので id で引く
     seconds_by_id = {
@@ -121,6 +173,21 @@ def parse_score(path: str | Path) -> ParsedScore:
                 _iter_note_events(part, part_id, staff_number, index, channel, seconds_by_id)
             )
         )
+        if measure_range is not None:
+            part_events = [
+                event.model_copy(
+                    update={
+                        "offset_ql": event.offset_ql - range_start_ql,
+                        "offset_seconds": (
+                            max(0.0, event.offset_seconds - range_start_seconds)
+                            if event.offset_seconds is not None
+                            else None
+                        ),
+                    }
+                )
+                for event in part_events
+                if range_start_ql <= event.offset_ql < range_end_ql
+            ]
         events.extend(part_events)
         tracks.append(
             TrackInfo(
@@ -132,6 +199,10 @@ def parse_score(path: str | Path) -> ParsedScore:
                 note_count=len(part_events),
             )
         )
+
+    if measure_range is not None and not events:
+        start, end = measure_range
+        raise ValueError(f"measure_range {start}〜{end} に変換対象の音符がありません")
 
     # 拍単位が4分音符以外の表記(2分音符=60 等)も4分音符換算の BPM に正規化する
     quarter_bpms = [
@@ -148,7 +219,8 @@ def parse_score(path: str | Path) -> ParsedScore:
         midi_min=min(pitches) if pitches else None,
         midi_max=max(pitches) if pitches else None,
         note_count=len(events),
-        duration_ql=float(score.highestTime),
+        duration_ql=range_end_ql - range_start_ql,
+        measure_count=measure_count,
         tracks=tracks,
     )
     return ParsedScore(events=events, summary=summary)

@@ -1,5 +1,6 @@
 """storage の完了条件: 保存した score をプロセスをまたいでも(=ディスクから)読み戻せる。"""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -101,3 +102,51 @@ def test_invalid_score_id_rejected():
     for bad in ("../../etc", "abc", "ABCDEF0123456789ABCDEF0123456789", "0" * 31):
         with pytest.raises(ValueError):
             storage.score_dir(bad)
+
+
+def test_legacy_parsed_summary_is_reparsed_and_migrated():
+    score_id = storage.create_score(
+        "twinkle.mid", (FIXTURES / "twinkle.mid").read_bytes()
+    )
+    parsed_path = storage.score_dir(score_id) / "parsed.json"
+    parsed_path.write_bytes(
+        (FIXTURES / "legacy_parsed_without_measure_count.json").read_bytes()
+    )
+
+    summary = storage.load_parsed(score_id)
+
+    assert summary is not None
+    assert summary.measure_count == 4
+    migrated = json.loads(parsed_path.read_text(encoding="utf-8"))
+    assert migrated["measure_count"] == 4
+    assert migrated["tracks"][0]["part_id"] != "legacy-track-0"
+
+
+def test_legacy_parsed_summary_with_unparseable_original_returns_none():
+    score_id = storage.create_score("broken.mid", b"not a midi file")
+    parsed_path = storage.score_dir(score_id) / "parsed.json"
+    legacy = (FIXTURES / "legacy_parsed_without_measure_count.json").read_bytes()
+    parsed_path.write_bytes(legacy)
+
+    assert storage.load_parsed(score_id) is None
+    assert parsed_path.read_bytes() == legacy
+
+
+def test_legacy_parsed_summary_is_returned_when_migration_write_fails(monkeypatch):
+    score_id = storage.create_score(
+        "twinkle.mid", (FIXTURES / "twinkle.mid").read_bytes()
+    )
+    parsed_path = storage.score_dir(score_id) / "parsed.json"
+    legacy = (FIXTURES / "legacy_parsed_without_measure_count.json").read_bytes()
+    parsed_path.write_bytes(legacy)
+
+    def _raise_write_error(_score_id, _summary):
+        raise OSError("read-only")
+
+    monkeypatch.setattr(storage, "save_parsed", _raise_write_error)
+
+    summary = storage.load_parsed(score_id)
+
+    assert summary is not None
+    assert summary.measure_count == 4
+    assert parsed_path.read_bytes() == legacy

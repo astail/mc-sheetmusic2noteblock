@@ -101,3 +101,40 @@ test("upload twinkle.mid -> generate blueprint -> play with no console errors", 
 
   expect(consoleErrors).toEqual([]);
 });
+
+test("measure range validates input and sends only the selected measures", async ({ page }) => {
+  let blueprintRequest = null;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().includes("/blueprint")) {
+      blueprintRequest = request.postDataJSON();
+    }
+  });
+
+  await page.goto("/");
+  await page.setInputFiles("#file-input", TWINKLE_MID);
+  await expect(page.locator("#measure-start")).toBeEnabled();
+  await expect(page.locator("#measure-start")).toHaveAttribute("max", "4");
+  await expect(page.locator("#measure-end")).toHaveAttribute("max", "4");
+
+  await page.locator("#measure-start").fill("2");
+  await page.locator("#generate-button").click();
+  await expect(page.locator("#settings-status")).toContainText(
+    "開始小節と終了小節を両方入力してください",
+  );
+  await expect(page.locator(".step-card")).toHaveCount(0);
+
+  await page.locator("#measure-end").fill("5");
+  await page.locator("#generate-button").click();
+  await expect(page.locator("#settings-status")).toContainText("小節範囲は 1〜4");
+  await expect(page.locator(".step-card")).toHaveCount(0);
+
+  await page.locator("#measure-end").fill("2");
+  await page.locator("#generate-button").click();
+  await expect(page.locator(".step-card").first()).toBeVisible();
+
+  expect(blueprintRequest.measure_range).toEqual([2, 2]);
+  const sources = await page.locator(".step-note-source").allTextContents();
+  expect(sources.length).toBeGreaterThan(0);
+  expect(sources.every((source) => source.startsWith("小節2 "))).toBe(true);
+  await expect(page.locator(".step-card-delay").first()).toContainText("曲頭から 0 RT");
+});

@@ -47,6 +47,21 @@ export function collectSettings({ tpq, preset, transpose, handChoices, measureSt
   return settings;
 }
 
+export function validateMeasureRange(start, end, measureCount) {
+  if (start == null && end == null) return null;
+  if (start == null || end == null) return "開始小節と終了小節を両方入力してください";
+  if (!Number.isInteger(start) || !Number.isInteger(end)) {
+    return "小節範囲は整数で入力してください";
+  }
+  if (start < 1 || start > end) {
+    return "小節範囲は 1 以上かつ 開始 <= 終了 で入力してください";
+  }
+  if (end > measureCount) {
+    return `小節範囲は 1〜${measureCount} で入力してください`;
+  }
+  return null;
+}
+
 export function initSettings() {
   const section = document.getElementById("settings-section");
   const body = document.createElement("div");
@@ -63,6 +78,7 @@ export function initSettings() {
 
 function renderPanel(body, state) {
   const s = state.summary;
+  const measureCount = s.measure_count ?? 0;
   const range =
     s.midi_min != null ? `${noteName(s.midi_min)} 〜 ${noteName(s.midi_max)}` : "－";
   const tracksRows = s.tracks
@@ -114,11 +130,11 @@ function renderPanel(body, state) {
       <label>移調(半音)
         <input type="number" id="transpose-input" value="0" min="-12" max="12" step="1">
       </label>
-      <label>小節範囲(未対応)
+      <label>小節範囲(全 ${measureCount} 小節、未入力なら全曲)
         <span class="measure-range">
-          <input type="number" id="measure-start" min="1" placeholder="開始" disabled>
+          <input type="number" id="measure-start" min="1" max="${measureCount}" step="1" placeholder="開始">
           〜
-          <input type="number" id="measure-end" min="1" placeholder="終了" disabled>
+          <input type="number" id="measure-end" min="1" max="${measureCount}" step="1" placeholder="終了">
         </span>
       </label>
     </div>
@@ -142,13 +158,20 @@ function renderPanel(body, state) {
     }
     const start = body.querySelector("#measure-start").valueAsNumber;
     const end = body.querySelector("#measure-end").valueAsNumber;
+    const measureStart = Number.isNaN(start) ? null : start;
+    const measureEnd = Number.isNaN(end) ? null : end;
+    const rangeError = validateMeasureRange(measureStart, measureEnd, measureCount);
+    if (rangeError) {
+      showStatus(rangeError, "error");
+      return;
+    }
     const settings = collectSettings({
       tpq: Number(body.querySelector("#tpq-select").value),
       preset: body.querySelector("#preset-select").value,
       transpose: Number(body.querySelector("#transpose-input").value) || 0,
       handChoices,
-      measureStart: Number.isNaN(start) ? null : start,
-      measureEnd: Number.isNaN(end) ? null : end,
+      measureStart,
+      measureEnd,
     });
     const requestedScoreId = state.scoreId;
     showStatus("設計書を生成中…", "busy");
