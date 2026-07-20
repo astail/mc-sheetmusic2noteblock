@@ -100,12 +100,18 @@ export function initPlayer() {
     while (highlightQueue.length > 0 && highlightQueue[0].time <= now) {
       setHighlight(highlightQueue.shift().stepIndex);
     }
+    const totalSteps = getState().blueprint?.steps.length ?? 0;
+    const finished = !schedulerTimer && highlightQueue.length === 0 && currentStepIndex >= totalSteps;
+    if (finished) {
+      stop(); // 最後のステップまで表示し終えたら再生バーを再生前の状態に戻す
+      return;
+    }
     rafId = requestAnimationFrame(highlightLoop);
   }
 
   function play() {
     if (audioContext) {
-      audioContext.resume();
+      audioContext.resume().then(updateButtons); // resume は非同期のため解決後に反映
       return;
     }
     const blueprint = getState().blueprint;
@@ -125,8 +131,7 @@ export function initPlayer() {
   }
 
   function pause() {
-    if (audioContext) audioContext.suspend();
-    updateButtons();
+    if (audioContext) audioContext.suspend().then(updateButtons); // suspend は非同期のため解決後に反映
   }
 
   function stop() {
