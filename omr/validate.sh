@@ -51,6 +51,8 @@ container_id="$(compose ps --quiet omr)"
 test -n "${container_id}"
 status="$(docker inspect --format '{{.State.Health.Status}}' "${container_id}")"
 test "${status}" = "healthy"
+# entrypoint の ${OMR_PORT:-8080} と同様に、空文字も既定値へ戻る。
+compose exec --no-TTY --env OMR_PORT= omr /usr/local/bin/omr-healthcheck
 
 compose exec --no-TTY omr python3 - \
     "/data/${validation_name}/allegretto.png" \
