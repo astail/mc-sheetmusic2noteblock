@@ -70,6 +70,14 @@ function render(container, layout) {
 
   container.querySelectorAll(".layout-segment").forEach((el) => {
     el.addEventListener("click", () => selectStep(container, Number(el.dataset.stepIndex)));
+    // SVG <g> は tabindex でフォーカス可能にしても、ネイティブボタンと違い
+    // Enter/Space で click が発火しないため、キーボード操作用に明示的に処理する
+    el.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault(); // Space によるページスクロールを防ぐ
+        selectStep(container, Number(el.dataset.stepIndex));
+      }
+    });
   });
 
   // ステップカードは blueprint_view.js が同じ blueprint 更新で再生成する。
