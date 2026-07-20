@@ -1,0 +1,59 @@
+/* 印刷用設計書ビュー(docs/DESIGN.md §8)。
+   再生バー・アップロード/設定 UI・操作ボタンを隠し、ステップカードを紙向けに整形する。 */
+
+@media print {
+  .site-header,
+  #upload-section,
+  #settings-section,
+  #layout-view,
+  .player-bar,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    padding-bottom: 0;
+    background: #fff;
+    color: #000;
+  }
+
+  .wizard {
+    max-width: 100%;
+    padding: 0;
+    gap: 12px;
+  }
+
+  .wizard-step {
+    border: none;
+    padding: 0;
+  }
+
+  .summary-card,
+  .tracks-table,
+  .tracks-table th,
+  .tracks-table td,
+  .warning-item {
+    border-color: #000;
+  }
+
+  /* 1ステップが途中でページをまたがないようにする */
+  .step-card {
+    border: 1px solid #000;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* 右手/左手は色だけに頼らず、枠線の線種でも判別できるようにする
+     (describeNote() のテキストに「右手」「左手」が含まれることに加えて) */
+  .step-note--right {
+    background: none;
+    color: #000;
+    border-left: 4px solid #000;
+  }
+
+  .step-note--left {
+    background: none;
+    color: #000;
+    border-left: 4px dashed #000;
+  }
+}

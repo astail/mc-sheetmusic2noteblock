@@ -96,6 +96,7 @@ function renderBlueprint(body, blueprint) {
     .join("");
 
   body.innerHTML = `
+    <button type="button" id="print-button" class="print-button no-print">🖨 印刷</button>
     <div class="summary-cards">${summaryCards}</div>
     <section class="materials-list">
       <h3>資材リスト</h3>
@@ -120,6 +121,8 @@ function renderBlueprint(body, blueprint) {
       ${blueprint.steps.map((step) => renderStepCard(step)).join("")}
     </section>
   `;
+
+  body.querySelector("#print-button").addEventListener("click", () => window.print());
 }
 
 function renderStepCard(step) {
