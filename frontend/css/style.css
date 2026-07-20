@@ -285,3 +285,62 @@ body {
 .warning-jump {
   color: var(--hand-right);
 }
+
+/* ステップカード列 */
+.step-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.step-card {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  scroll-margin-top: 12px;
+}
+
+.step-card-delay {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  margin-bottom: 6px;
+}
+
+.step-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.step-note--right {
+  background: var(--hand-right-bg);
+  color: var(--hand-right);
+}
+
+.step-note--left {
+  background: var(--hand-left-bg);
+  color: var(--hand-left);
+}
+
+.step-note-dots {
+  font-family: monospace;
+  letter-spacing: 1px;
+}
+
+.step-note-source {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
