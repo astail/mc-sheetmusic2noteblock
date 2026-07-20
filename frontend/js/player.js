@@ -4,7 +4,7 @@
 // currentTime が進まないため、スケジュール済みノートの絶対時刻がそのまま
 // 再開後も正しく機能する(再スケジュール不要)。
 
-import { createLimiter, playNote } from "./synth.js";
+import { MAX_NOTE_DURATION_SECONDS, createLimiter, playNote } from "./synth.js";
 import { getState, subscribe } from "./state.js";
 
 const TICK_SECONDS = 0.1;
@@ -42,7 +42,10 @@ export function initPlayer() {
   let audioContext = null;
   let limiter = null;
   let currentStepIndex = 0;
-  let nextStepTime = 0;
+  // 直近に発音したステップを基準に、まだ発音していないステップの時刻を
+  // scheduler() のたびにライブな rate() で再計算する(速度変更を即時反映するため)
+  let anchorTime = 0;
+  let anchorTick = 0;
   let schedulerTimer = null;
   let highlightQueue = []; // [{stepIndex, time}] 未ハイライトの発音予定
   let rafId = null;
@@ -59,23 +62,26 @@ export function initPlayer() {
 
   function scheduler() {
     const steps = getState().blueprint.steps;
-    while (
-      currentStepIndex < steps.length &&
-      nextStepTime < audioContext.currentTime + SCHEDULE_AHEAD_SECONDS
-    ) {
+    while (currentStepIndex < steps.length) {
       const step = steps[currentStepIndex];
+      // 直近に発音したステップからの距離を、その都度ライブな rate() で計算する。
+      // まだ発音していない限り何度でも再計算されるため、速度変更が次の
+      // scheduler() 実行(最大 SCHEDULER_INTERVAL_MS 後)で反映される
+      const targetTime = anchorTime + scheduleTime(step.tick - anchorTick, rate());
+      if (targetTime >= audioContext.currentTime + SCHEDULE_AHEAD_SECONDS) break;
+
       const notes = visibleNotes(step);
       for (const note of notes) {
         playNote(audioContext, limiter, {
           instrument: note.instrument,
           midi: note.midi,
-          startTime: nextStepTime,
+          startTime: targetTime,
           polyphony: notes.length,
         });
       }
-      highlightQueue.push({ stepIndex: step.index, time: nextStepTime });
-      const next = steps[currentStepIndex + 1];
-      if (next) nextStepTime += scheduleTime(next.tick - step.tick, rate());
+      highlightQueue.push({ stepIndex: step.index, time: targetTime });
+      anchorTime = targetTime;
+      anchorTick = step.tick;
       currentStepIndex++;
     }
     if (currentStepIndex >= steps.length && schedulerTimer) {
@@ -103,7 +109,7 @@ export function initPlayer() {
     const totalSteps = getState().blueprint?.steps.length ?? 0;
     const finished = !schedulerTimer && highlightQueue.length === 0 && currentStepIndex >= totalSteps;
     if (finished) {
-      stop(); // 最後のステップまで表示し終えたら再生バーを再生前の状態に戻す
+      finishPlayback(); // 最後のステップまで表示し終えたら再生バーを再生前の状態に戻す
       return;
     }
     rafId = requestAnimationFrame(highlightLoop);
@@ -120,9 +126,10 @@ export function initPlayer() {
     limiter = createLimiter(audioContext);
     limiter.connect(audioContext.destination);
     currentStepIndex = 0;
-    // 先頭ステップが曲頭(tick 0)から遅れている場合(ピックアップ小節等)も反映する
-    nextStepTime =
-      audioContext.currentTime + START_DELAY_SECONDS + scheduleTime(blueprint.steps[0].tick, rate());
+    // tick 0 を基準に開始する(先頭ステップが曲頭から遅れている場合もこの後の
+    // scheduleTime 計算で自然に反映される)
+    anchorTime = audioContext.currentTime + START_DELAY_SECONDS;
+    anchorTick = 0;
     highlightQueue = [];
     scheduler();
     schedulerTimer = setInterval(scheduler, SCHEDULER_INTERVAL_MS);
@@ -134,16 +141,32 @@ export function initPlayer() {
     if (audioContext) audioContext.suspend().then(updateButtons); // suspend は非同期のため解決後に反映
   }
 
-  function stop() {
+  // スケジューラ/ハイライトを止めて UI を再生前の状態に戻す(AudioContext は閉じない)
+  function resetUiState() {
     if (schedulerTimer) clearInterval(schedulerTimer);
     schedulerTimer = null;
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
-    if (audioContext) audioContext.close();
-    audioContext = null;
     if (highlightedEl) highlightedEl.classList.remove("step-card--active");
     highlightedEl = null;
     updateButtons();
+  }
+
+  // ユーザーが「■ 停止」を押した場合: 即座に無音化する
+  function stop() {
+    const ctx = audioContext;
+    audioContext = null;
+    resetUiState();
+    if (ctx) ctx.close();
+  }
+
+  // 最後のステップまで表示し終えた場合: 末尾ノート(最長 bell の減衰)が
+  // 鳴り終わるまで AudioContext を閉じずに待ってから片付ける
+  function finishPlayback() {
+    const ctx = audioContext;
+    audioContext = null;
+    resetUiState();
+    setTimeout(() => ctx.close(), MAX_NOTE_DURATION_SECONDS * 1000);
   }
 
   function updateButtons() {

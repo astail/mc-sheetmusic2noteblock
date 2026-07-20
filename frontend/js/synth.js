@@ -42,6 +42,9 @@ const BELL_WEIGHTS = (() => {
   return BELL_WEIGHTS_RAW.map((w) => w / sum);
 })();
 
+// 各レシピの最長発音時間(秒)。bell が最長(#33 player.js が末尾ノートの減衰を待つのに使う)
+export const MAX_NOTE_DURATION_SECONDS = 2.05;
+
 const BASE_PEAK_GAIN = 0.9;
 
 // 和音時にクリップしないよう、同時発音数(polyphony)に応じてピークゲインを下げる
