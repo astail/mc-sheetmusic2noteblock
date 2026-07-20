@@ -71,15 +71,22 @@ test("upload twinkle.mid -> generate blueprint -> play with no console errors", 
       expect(dotsText).toBe("●".repeat(clicks) + "○".repeat(24 - clicks));
       await expect(text).toContainText(`${clicks}クリック`);
 
-      const className = await note.getAttribute("class");
-      expect(className).toMatch(/step-note--(right|left)/); // (d) 右手/左手の別
-      noteClassNames.push(className);
+      // (d) 右手/左手の別。正規表現の部分一致だと "step-note--right-extra" の
+      // ような不正な class も誤って合格してしまう(CSS の class セレクタは
+      // 完全一致でしかスタイルが当たらない)ため、classList をトークンごとに
+      // 完全一致で確認する
+      const classAttr = await note.getAttribute("class");
+      const handClasses = classAttr
+        .split(/\s+/)
+        .filter((c) => c === "step-note--right" || c === "step-note--left");
+      expect(handClasses).toHaveLength(1);
+      noteClassNames.push(handClasses[0]);
     }
   }
   // twinkle.mid は右手メロディ+左手和音の両方を含むフィクスチャ(test_hand_split.py で保証)。
   // 全音が片手に寄っていないか(左右判別の回帰)も確認する
-  expect(noteClassNames.some((c) => c.includes("step-note--right"))).toBe(true);
-  expect(noteClassNames.some((c) => c.includes("step-note--left"))).toBe(true);
+  expect(noteClassNames).toContain("step-note--right");
+  expect(noteClassNames).toContain("step-note--left");
 
   // 4. 再生ボタンまで自動操作。実際に再生が始まったこと(停止/一時停止ボタンが
   // 有効化されること)まで確認し、クリックだけして何も起きない回帰を検出する
