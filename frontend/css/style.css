@@ -344,3 +344,36 @@ body {
   font-size: 0.8rem;
   color: var(--color-muted);
 }
+
+/* 再生バー(画面下部固定) */
+.player-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.player-bar button {
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.player-bar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.player-rate,
+.player-solo {
+  font-size: 0.9rem;
+  color: var(--color-muted);
+}
+
+/* 再生中の現在ステップハイライト */
+.step-card--active {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
