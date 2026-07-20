@@ -379,3 +379,54 @@ body {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 2px var(--color-accent);
 }
+
+/* 配置俯瞰図(SVG) */
+#layout-view h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.layout-svg-wrapper {
+  overflow-x: auto;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.layout-svg {
+  display: block;
+}
+
+.layout-bus,
+.layout-branch {
+  stroke: var(--color-muted);
+  stroke-width: 2;
+}
+
+.layout-note {
+  fill: var(--color-accent);
+}
+
+.layout-segment {
+  cursor: pointer;
+}
+
+.layout-hit {
+  fill: transparent;
+}
+
+.layout-segment--selected .layout-branch,
+.layout-segment--selected .layout-bus {
+  stroke: var(--hand-right);
+}
+
+.layout-segment--selected .layout-hit {
+  fill: var(--hand-right);
+  fill-opacity: 0.3;
+}
+
+/* 俯瞰図クリックによるステップカード選択(再生中ハイライトとは別の見た目) */
+.step-card--selected {
+  border-color: var(--hand-right);
+  box-shadow: 0 0 0 2px var(--hand-right);
+}
