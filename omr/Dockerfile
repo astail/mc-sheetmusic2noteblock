@@ -2,7 +2,7 @@
 
 # Audiveris 5.11 requires a 64-bit Java 25 runtime. The official Linux
 # release is currently available for x86_64 only.
-FROM eclipse-temurin:25.0.3_9-jre-noble@sha256:2f1da100788559b397bcf48c736169ea5b070bde84e55f203bbee8e83d87a175
+FROM eclipse-temurin:25.0.3_9-jre-noble@sha256:2f1da100788559b397bcf48c736169ea5b070bde84e55f203bbee8e83d87a175 AS base
 
 ARG TARGETARCH
 ARG AUDIVERIS_VERSION=5.11.0
@@ -28,7 +28,9 @@ RUN set -eux; \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
-        libgtk-3-0t64; \
+        libgtk-3-0t64 \
+        python3 \
+        python3-pip; \
     curl --fail --location --retry 3 \
         --output /tmp/audiveris.deb \
         "${AUDIVERIS_PACKAGE_URL}"; \
@@ -43,13 +45,33 @@ RUN set -eux; \
     apt-get purge -y --auto-remove curl; \
     ln -s /usr/local/bin/Audiveris /opt/audiveris/bin/Audiveris
 
+COPY requirements.txt /tmp/omr-requirements.txt
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+        --requirement /tmp/omr-requirements.txt; \
+    rm /tmp/omr-requirements.txt
+
 COPY --chmod=755 bin/Audiveris /usr/local/bin/Audiveris
 COPY --chmod=755 bin/entrypoint.sh /usr/local/bin/omr-entrypoint
 COPY --chmod=755 bin/healthcheck.sh /usr/local/bin/omr-healthcheck
+COPY wrapper /opt/omr-api/wrapper
 
 RUN Audiveris -version
 
-WORKDIR /data
+FROM base AS test
+
+COPY requirements-dev.txt /tmp/omr-requirements-dev.txt
+COPY tests /tests
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+        --requirement /tmp/omr-requirements-dev.txt; \
+    rm /tmp/omr-requirements-dev.txt
+
+WORKDIR /opt/omr-api
+ENTRYPOINT ["python3", "-m", "pytest"]
+CMD ["-q", "/tests"]
+
+FROM base AS runtime
+
+WORKDIR /opt/omr-api
 VOLUME ["/data"]
 EXPOSE 8080
 
