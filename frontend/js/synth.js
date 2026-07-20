@@ -49,8 +49,24 @@ export function normalizedGain(polyphony) {
   return BASE_PEAK_GAIN / Math.max(1, polyphony);
 }
 
+// bell 等は減衰(最長2秒)が次ステップ以降の発音と重なりうるため、
+// polyphony によるステップ内正規化だけでは足りない。呼び出し側は
+// playNote の destination の手前にこのノードを挟み、ステップをまたぐ
+// 余韻の重なりも含めてクリップを防ぐ。
+export function createLimiter(audioContext) {
+  const limiter = audioContext.createDynamicsCompressor();
+  const t = audioContext.currentTime;
+  limiter.threshold.setValueAtTime(-6, t);
+  limiter.knee.setValueAtTime(0, t);
+  limiter.ratio.setValueAtTime(20, t);
+  limiter.attack.setValueAtTime(0.001, t);
+  limiter.release.setValueAtTime(0.1, t);
+  return limiter;
+}
+
 // audioContext の destination に音符1つ分の音源をスケジュールする。
 // polyphony はそのステップの同時発音数(#33 player.js が呼び出し時に渡す)。
+// destination は createLimiter() の出力を経由させること(余韻の重なり対策)。
 export function playNote(audioContext, destination, { instrument, midi, startTime, polyphony = 1 }) {
   const recipe = recipeFor(instrument);
   const frequency = midiToFrequency(midi);
