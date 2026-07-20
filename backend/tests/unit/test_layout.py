@@ -42,6 +42,19 @@ def test_bus_offset_accounts_for_repeaters_and_branch_dust():
     assert [s.step_index for s in layout.segments] == [0, 1, 2]
 
 
+def test_first_step_with_leading_rest_includes_incoming_repeaters():
+    # 曲頭に無音区間があるピックアップ小節のケース(blueprint_builder の
+    # test_first_step_with_nonzero_tick と同じ前提: steps[0].repeaters は
+    # 起動レバー/ボタンから最初の音までの遅延を表す)。先頭ステップでも
+    # count > 0 なら分岐点はバス起点(0)ではなくその先になる
+    steps = [
+        _step(0, 3, 3, [3], note_count=1),  # count=1 → +2(=1+1)
+        _step(1, 7, 4, [4], note_count=1),  # count=1 → +2(=1+1)
+    ]
+    layout = build_layout(steps)
+    assert [s.bus_offset_blocks for s in layout.segments] == [2, 4]
+
+
 def test_branch_sides_single_for_small_chord():
     step = _step(0, 0, 0, [], note_count=4)  # big_chord 閾値未満
     layout = build_layout([step])
