@@ -5,13 +5,14 @@
 - blueprint.json: 最後に生成した設計書(Blueprint)
 """
 
+import json
 import re
 import uuid
 from pathlib import Path
 
 from app import config
 from app.models.blueprint import Blueprint
-from app.services.parser import ScoreSummary
+from app.services.parser import ScoreSummary, parse_score
 
 _SCORE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
@@ -75,7 +76,28 @@ def load_parsed(score_id: str) -> ScoreSummary | None:
     path = score_dir(score_id) / "parsed.json"
     if not path.is_file():
         return None
-    return ScoreSummary.model_validate_json(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    summary = ScoreSummary.model_validate(payload)
+    if "measure_count" in payload:
+        return summary
+
+    # #38 より前の parsed.json は measure_count を持たない。元ファイルから
+    # 再パースして全フィールドを最新の形に揃え、次回以降の読み込み用に保存する。
+    original = original_path(score_id)
+    if original is None:
+        return None
+    try:
+        migrated = parse_score(original).summary
+    except Exception:
+        # 壊れた永続データは、従来どおり API 層で「score が見つからない」と扱う。
+        return None
+    try:
+        save_parsed(score_id, migrated)
+    except OSError:
+        # 読み取り可能な既存 score は、移行結果を書き戻せない場合も返す。
+        # 次回アクセスで再度移行を試みる。
+        pass
+    return migrated
 
 
 def save_blueprint(score_id: str, blueprint: Blueprint) -> None:

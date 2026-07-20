@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app import config
+from app import config, storage
 from app.main import app
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -115,6 +115,26 @@ def test_measure_range_rebases_midi_seconds_mode():
     )
     assert res.status_code == 200
     assert [step["tick"] for step in res.json()["steps"]] == [0, 7, 13, 20]
+
+
+def test_measure_range_migrates_legacy_summary_before_blueprint():
+    score_id = _upload("twinkle.mid")
+    parsed_path = storage.score_dir(score_id) / "parsed.json"
+    parsed_path.write_bytes(
+        (FIXTURES / "legacy_parsed_without_measure_count.json").read_bytes()
+    )
+
+    res = client.post(
+        f"/api/scores/{score_id}/blueprint",
+        json={"ticks_per_quarter": 4, "measure_range": [4, 4]},
+    )
+
+    assert res.status_code == 200
+    notes = [note for step in res.json()["steps"] for note in step["notes"]]
+    assert {note["source"]["measure"] for note in notes} == {4}
+    migrated = storage.load_parsed(score_id)
+    assert migrated is not None
+    assert migrated.measure_count == 4
 
 
 def test_seconds_mode_on_tempo_change():

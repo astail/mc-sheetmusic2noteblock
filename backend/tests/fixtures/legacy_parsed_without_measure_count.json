@@ -1,0 +1,27 @@
+{
+  "title": null,
+  "original_bpm": 100.0,
+  "has_tempo_changes": false,
+  "midi_min": 41,
+  "midi_max": 69,
+  "note_count": 26,
+  "duration_ql": 16.0,
+  "tracks": [
+    {
+      "index": 0,
+      "part_id": "legacy-track-0",
+      "name": null,
+      "staff_number": null,
+      "is_percussion": false,
+      "note_count": 14
+    },
+    {
+      "index": 1,
+      "part_id": "legacy-track-1",
+      "name": null,
+      "staff_number": null,
+      "is_percussion": false,
+      "note_count": 12
+    }
+  ]
+}
