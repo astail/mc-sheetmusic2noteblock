@@ -11,3 +11,8 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+# frontend E2E (Playwright)
+node_modules/
+frontend/test-results/
+frontend/playwright-report/
