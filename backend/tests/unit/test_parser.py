@@ -18,6 +18,7 @@ def test_scale_c_major():
     # 4分音符が1拍ずつ並ぶ
     offsets = [e.offset_ql for e in parsed.events]
     assert offsets == [float(i) for i in range(8)]
+    assert parsed.summary.measure_count == 2
 
 
 def test_twinkle_both_hands_staves():
@@ -46,6 +47,7 @@ def test_twinkle_midi():
     assert len(melodic_tracks) == 2
     track_indices = {e.track_index for e in parsed.events}
     assert len(track_indices) == 2
+    assert parsed.summary.measure_count == 4
 
 
 def test_tempo_change():
@@ -98,3 +100,56 @@ def test_chord_notes_share_offset():
     first_chord = [e for e in left if e.offset_ql == 0.0]
     assert len(first_chord) == 3
     assert {e.midi_pitch for e in first_chord} == {48, 52, 55}  # C3 E3 G3
+
+
+def test_musicxml_measure_range_is_inclusive_and_rebased():
+    parsed = parse_score(FIXTURES / "scale_c_major.musicxml", measure_range=(2, 2))
+
+    assert parsed.summary.note_count == 4
+    assert parsed.summary.duration_ql == 4
+    assert [e.offset_ql for e in parsed.events] == [0.0, 1.0, 2.0, 3.0]
+    assert {e.measure for e in parsed.events} == {2}
+
+
+def test_midi_measure_range_uses_generated_measures():
+    parsed = parse_score(FIXTURES / "twinkle.mid", measure_range=(3, 4))
+
+    assert parsed.summary.measure_count == 4
+    assert parsed.summary.note_count == 13
+    assert min(e.offset_ql for e in parsed.events) == 0
+    assert max(e.offset_ql for e in parsed.events) == 6
+    assert {e.measure for e in parsed.events} == {3, 4}
+
+
+def test_measure_range_rebases_seconds_with_tempo_change():
+    parsed = parse_score(FIXTURES / "tempo_change.mid", measure_range=(2, 2))
+
+    assert [e.offset_seconds for e in parsed.events] == pytest.approx(
+        [0.0, 2 / 3, 4 / 3, 2.0]
+    )
+
+
+def test_measure_range_preserves_rest_before_first_note(tmp_path):
+    from music21 import meter, note, stream
+
+    part = stream.Part(id="P1")
+    first = stream.Measure(number=1)
+    first.append(meter.TimeSignature("4/4"))
+    first.append(note.Rest(quarterLength=4))
+    second = stream.Measure(number=2)
+    second.append(note.Rest(quarterLength=1))
+    second.append(note.Note("C4", quarterLength=1))
+    second.append(note.Rest(quarterLength=2))
+    part.append([first, second])
+    score = stream.Score([part])
+    path = tmp_path / "leading-rest.musicxml"
+    score.write("musicxml", fp=path)
+
+    parsed = parse_score(path, measure_range=(2, 2))
+
+    assert [e.offset_ql for e in parsed.events] == [1.0]
+
+
+def test_measure_range_outside_score_is_rejected():
+    with pytest.raises(ValueError, match="1〜2"):
+        parse_score(FIXTURES / "scale_c_major.musicxml", measure_range=(2, 3))

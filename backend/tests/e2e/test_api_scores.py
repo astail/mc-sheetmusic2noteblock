@@ -31,6 +31,7 @@ def test_upload_twinkle_mid_returns_summary():
     assert body["summary"]["original_bpm"] == 100
     assert body["summary"]["midi_min"] == 41
     assert body["summary"]["midi_max"] == 69
+    assert body["summary"]["measure_count"] == 4
     assert len(body["summary"]["tracks"]) == 2
     assert body["recommended_tpq"] == 6  # 100BPM → tpq6(実効100BPM)
 
@@ -42,6 +43,7 @@ def test_upload_musicxml_returns_summary():
     assert res.status_code == 200
     body = res.json()
     assert body["summary"]["note_count"] == 8
+    assert body["summary"]["measure_count"] == 2
     assert body["recommended_tpq"] == 5  # 120BPM → tpq5(実効120BPM)
 
 
