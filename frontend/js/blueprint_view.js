@@ -1,5 +1,4 @@
-// 設計書ビュー: サマリーカード・資材リスト・警告一覧(docs/DESIGN.md §7・§8 のセクション3)。
-// ステップカード列本体は issue #31 で追加する(この段階では #summary-cards / #materials-list / #warnings-list のみ)。
+// 設計書ビュー: サマリーカード・資材リスト・警告一覧・ステップカード列(docs/DESIGN.md §7・§8 のセクション3)。
 
 import { escapeHtml } from "./settings.js";
 import { subscribe } from "./state.js";
@@ -11,11 +10,39 @@ const WARNING_LABELS = {
   merge: "音のマージ",
 };
 
+const HAND_LABELS = { right: "右手", left: "左手" };
+
 export function formatDuration(seconds) {
   const total = Math.round(seconds);
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+// clicks(0〜24) を ●●●●●●○○ のドット表示にする(REQUIREMENTS.md 必須4点)
+export function clicksDots(clicks) {
+  return "●".repeat(clicks) + "○".repeat(24 - clicks);
+}
+
+// 「⏱ 前のステップから 7 RT → リピーター2個(4目盛+3目盛)」/ 先頭ステップは曲頭からの遅延として表記
+export function describeDelay(step, index) {
+  const prefix = index === 0 ? "曲頭から" : "前のステップから";
+  if (step.delay_from_prev_rticks === 0) {
+    return `⏱ ${prefix} 0 RT(リピーターなし)`;
+  }
+  const chainText = step.repeaters.chain.map((v) => `${v}目盛`).join("+");
+  return `⏱ ${prefix} ${step.delay_from_prev_rticks} RT → リピーター${step.repeaters.count}個(${chainText})`;
+}
+
+// 「ハープ(下: 土)/ 6クリック = C4 / 右手」
+export function describeNote(note) {
+  return `${note.instrument_ja}(下: ${note.base_block_ja}) / ${note.clicks}クリック = ${note.note_name} / ${HAND_LABELS[note.hand] ?? note.hand}`;
+}
+
+// 元の小節・拍の併記。source がなければ null
+export function describeSource(source) {
+  if (!source) return null;
+  return `小節${source.measure} 拍${source.beat}(${source.part})`;
 }
 
 export function initBlueprintView() {
@@ -88,5 +115,29 @@ function renderBlueprint(body, blueprint) {
         ? `<section class="warnings-list"><h3>警告</h3><ul>${warningItems}</ul></section>`
         : ""
     }
+    <section class="step-cards">
+      <h3>ステップ</h3>
+      ${blueprint.steps.map((step) => renderStepCard(step)).join("")}
+    </section>
   `;
+}
+
+function renderStepCard(step) {
+  const notesHtml = step.notes
+    .map((note) => {
+      const source = describeSource(note.source);
+      return `
+        <li class="step-note step-note--${escapeHtml(note.hand)}">
+          <span class="step-note-text">${escapeHtml(describeNote(note))}</span>
+          <span class="step-note-dots" title="${note.clicks}/24 クリック">${clicksDots(note.clicks)}</span>
+          ${source ? `<span class="step-note-source">${escapeHtml(source)}</span>` : ""}
+        </li>`;
+    })
+    .join("");
+
+  return `
+    <article id="step-${step.index}" class="step-card">
+      <div class="step-card-delay">${escapeHtml(describeDelay(step, step.index))}</div>
+      <ul class="step-notes">${notesHtml}</ul>
+    </article>`;
 }
