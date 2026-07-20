@@ -190,10 +190,16 @@ export function initPlayer() {
     }, MAX_NOTE_DURATION_SECONDS * 1000);
   }
 
+  // 全トラックを ignore にすると steps: [] の空の設計書が生成されうるため、
+  // その場合は再生しても何も起きない不自然な有効ボタンにしない
+  function hasPlayableBlueprint() {
+    const blueprint = getState().blueprint;
+    return Boolean(blueprint && blueprint.steps.length > 0);
+  }
+
   function updateButtons() {
-    const hasBlueprint = Boolean(getState().blueprint);
     const isSuspended = audioContext && audioContext.state === "suspended";
-    playButton.disabled = !hasBlueprint || (Boolean(audioContext) && !isSuspended);
+    playButton.disabled = !hasPlayableBlueprint() || (Boolean(audioContext) && !isSuspended);
     pauseButton.disabled = !audioContext || isSuspended;
     stopButton.disabled = !audioContext;
   }
@@ -205,7 +211,7 @@ export function initPlayer() {
   subscribe((state, changed) => {
     if (changed.includes("blueprint")) {
       stop();
-      playButton.disabled = !state.blueprint;
+      playButton.disabled = !hasPlayableBlueprint();
     }
   });
 }
