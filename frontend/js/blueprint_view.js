@@ -8,6 +8,7 @@ const WARNING_LABELS = {
   big_chord: "大きな和音",
   tempo_change: "テンポ変化",
   merge: "音のマージ",
+  repeater_limit: "曲の分割提案",
 };
 
 const HAND_LABELS = { right: "右手", left: "左手" };

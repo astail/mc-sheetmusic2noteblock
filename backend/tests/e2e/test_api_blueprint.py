@@ -117,6 +117,19 @@ def test_beat_mode_on_tempo_change_warns():
     assert "tempo_change" in warning_types
 
 
+def test_repeater_limit_warning_uses_config_threshold(monkeypatch):
+    monkeypatch.setattr(config, "REPEATER_WARNING_THRESHOLD", 6)
+    score_id = _upload("scale_c_major.musicxml")
+    res = client.post(
+        f"/api/scores/{score_id}/blueprint", json={"ticks_per_quarter": 4}
+    )
+    assert res.status_code == 200
+    warning = next(w for w in res.json()["warnings"] if w["type"] == "repeater_limit")
+    assert "リピーター総数は7個" in warning["message"]
+    assert "曲を分割して複数の演奏装置に" in warning["message"]
+    assert warning["steps"] is None
+
+
 def test_hand_assignment_override_applies():
     score_id = _upload("twinkle.mid")
     res = client.post(

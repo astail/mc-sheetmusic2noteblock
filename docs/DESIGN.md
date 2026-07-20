@@ -34,7 +34,7 @@ mc-sheetmusic2noteblock/
 │   ├── pyproject.toml              # fastapi, uvicorn, music21, python-multipart, httpx, pydantic, pytest
 │   ├── app/
 │   │   ├── main.py                 # アプリ生成、/api ルータ登録、frontend/ 静的マウント
-│   │   ├── config.py               # DATA_DIR, OMR_SERVICE_URL(環境変数)
+│   │   ├── config.py               # DATA_DIR, OMR_SERVICE_URL, 警告閾値(環境変数)
 │   │   ├── storage.py              # score_id 発行、data/scores/{id}/ 配下のファイル管理
 │   │   ├── models/
 │   │   │   ├── events.py           # NoteEvent(パース結果の中間表現)
@@ -216,7 +216,8 @@ layout.py         : 「直線リピーターバス + 櫛形分岐」の標準構
   },
   "warnings": [
     {"type": "octave_shift", "message": "A0〜B1 の 4音は bass 音域に収めるため +1〜+2 オクターブしました", "steps": [3, 17]},
-    {"type": "big_chord", "message": "ステップ42は同時7音です。分岐ダストを両側に伸ばす配線を推奨", "steps": [42]},
+    {"type": "big_chord", "message": "ステップ42は同時7音です。主バスから分岐ダストを南北（±Z）の両側に伸ばし、音符ブロックを振り分けて配線してください", "steps": [42]},
+    {"type": "repeater_limit", "message": "リピーター総数は350個で、設定閾値の300個を超えています。曲を分割して複数の演奏装置に分けることを推奨します"},
     {"type": "tempo_change", "message": "原曲にテンポ変化があります。beat モードでは一定テンポ(100BPM)に平坦化されます"}
   ],
   "layout": {
@@ -226,6 +227,8 @@ layout.py         : 「直線リピーターバス + 櫛形分岐」の標準構
   }
 }
 ```
+
+リピーター総数の警告閾値は `REPEATER_WARNING_THRESHOLD`（既定値: 300）で変更できる。
 
 **設計上のポイント**: この JSON だけでフロントの表示・プレビュー再生・印刷がすべて賄える
 (`tick` と `clicks` と `instrument` があれば Web Audio 再生に十分)。

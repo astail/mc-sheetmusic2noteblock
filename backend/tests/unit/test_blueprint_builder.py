@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from app import config
 from app.models.blueprint import Blueprint, Materials
 from app.models.events import NoteEvent
 from app.services.blueprint_builder import (
@@ -98,6 +99,27 @@ def test_big_chord_warning():
     assert len(big) == 1
     assert big[0].steps == [0]
     assert "同時5音" in big[0].message
+    assert "分岐ダストを南北（±Z）の両側に伸ばし" in big[0].message
+
+
+def test_repeater_limit_warning_uses_config_threshold(monkeypatch):
+    monkeypatch.setattr(config, "REPEATER_WARNING_THRESHOLD", 1)
+    quantized = [_qe(0), _qe(4, midi=62), _qe(8, midi=64)]
+    _, steps, warnings = _build(quantized, ["right"] * 3)
+    assert sum(step.repeaters.count for step in steps) == 2
+    warning = [w for w in warnings if w.type == "repeater_limit"]
+    assert len(warning) == 1
+    assert warning[0].steps is None
+    assert "リピーター総数は2個" in warning[0].message
+    assert "設定閾値の1個" in warning[0].message
+    assert "曲を分割して複数の演奏装置に" in warning[0].message
+
+
+def test_repeater_limit_warning_not_added_at_threshold(monkeypatch):
+    monkeypatch.setattr(config, "REPEATER_WARNING_THRESHOLD", 2)
+    quantized = [_qe(0), _qe(4, midi=62), _qe(8, midi=64)]
+    _, _, warnings = _build(quantized, ["right"] * 3)
+    assert not any(w.type == "repeater_limit" for w in warnings)
 
 
 def test_octave_shift_warning_has_step_indices():
