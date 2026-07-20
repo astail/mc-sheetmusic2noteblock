@@ -11,6 +11,7 @@ from app.models.blueprint import Blueprint
 from app.models.settings import ConversionSettings
 from app.services.blueprint_builder import build_blueprint_parts
 from app.services.hand_split import split_hands
+from app.services.layout import build_layout
 from app.services.materials import count_materials
 from app.services.parser import parse_score
 from app.services.quantizer import quantize_beats, quantize_seconds
@@ -75,6 +76,7 @@ def create_blueprint(score_id: str, settings: ConversionSettings) -> Blueprint:
         steps=steps,
         materials=count_materials(steps),
         warnings=result.warnings + build_warnings,
+        layout=build_layout(steps),
     )
     storage.save_blueprint(score_id, blueprint)
     return blueprint
