@@ -114,11 +114,11 @@ function renderPanel(body, state) {
       <label>移調(半音)
         <input type="number" id="transpose-input" value="0" min="-12" max="12" step="1">
       </label>
-      <label>小節範囲(任意)
+      <label>小節範囲(未対応)
         <span class="measure-range">
-          <input type="number" id="measure-start" min="1" placeholder="開始">
+          <input type="number" id="measure-start" min="1" placeholder="開始" disabled>
           〜
-          <input type="number" id="measure-end" min="1" placeholder="終了">
+          <input type="number" id="measure-end" min="1" placeholder="終了" disabled>
         </span>
       </label>
     </div>
@@ -150,10 +150,13 @@ function renderPanel(body, state) {
       measureStart: Number.isNaN(start) ? null : start,
       measureEnd: Number.isNaN(end) ? null : end,
     });
+    const requestedScoreId = state.scoreId;
     showStatus("設計書を生成中…", "busy");
     generateButton.disabled = true;
     try {
-      const blueprint = await createBlueprint(state.scoreId, settings);
+      const blueprint = await createBlueprint(requestedScoreId, settings);
+      // 応答待ちの間に別スコアがアップロードされていたら、古い結果で state を上書きしない
+      if (state.scoreId !== requestedScoreId) return;
       setState({ blueprint, settings });
       showStatus(`設計書を生成しました(${blueprint.meta.step_count} ステップ)`, "success");
       document.getElementById("blueprint-section").scrollIntoView({ behavior: "smooth" });
