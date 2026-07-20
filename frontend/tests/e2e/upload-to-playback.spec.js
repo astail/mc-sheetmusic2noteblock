@@ -54,10 +54,22 @@ test("upload twinkle.mid -> generate blueprint -> play with no console errors", 
       await expect(text).toHaveCount(1);
       await expect(text).toContainText("(下: "); // (b) 下に置くブロックの日本語名
 
+      // (c) クリック回数(0〜24)。dots の title 属性(`${clicks}/24 クリック`)が
+      // 真の値の情報源。文字列長だけでなく●の個数がその値と一致すること、
+      // かつ .step-note-text の「Nクリック」表記とも整合することを検証し、
+      // 「常に○のみ」等の表示だけ壊れる回帰を検出する
       const dots = note.locator(".step-note-dots");
       await expect(dots).toHaveCount(1);
       const dotsText = await dots.textContent();
-      expect(dotsText).toHaveLength(24); // (c) クリック回数(0〜24を●○24個で表現)
+      expect(dotsText).toHaveLength(24);
+      const title = await dots.getAttribute("title");
+      const clicksMatch = title?.match(/^(\d+)\/24/);
+      expect(clicksMatch).not.toBeNull();
+      const clicks = Number(clicksMatch[1]);
+      expect(clicks).toBeGreaterThanOrEqual(0);
+      expect(clicks).toBeLessThanOrEqual(24);
+      expect(dotsText).toBe("●".repeat(clicks) + "○".repeat(24 - clicks));
+      await expect(text).toContainText(`${clicks}クリック`);
 
       const className = await note.getAttribute("class");
       expect(className).toMatch(/step-note--(right|left)/); // (d) 右手/左手の別
