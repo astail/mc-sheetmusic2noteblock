@@ -1,3 +1,9 @@
 *
 !bin/
 !bin/**
+!wrapper/
+!wrapper/**
+!requirements.txt
+!requirements-dev.txt
+!tests/
+!tests/**
