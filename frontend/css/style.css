@@ -220,6 +220,15 @@ body {
   cursor: default;
 }
 
+.print-button {
+  padding: 8px 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
 /* 設計書ビュー(サマリー・資材・警告) */
 .summary-cards {
   display: grid;
