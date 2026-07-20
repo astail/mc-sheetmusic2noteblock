@@ -70,8 +70,12 @@ export function initPlayer() {
       // 直近に発音したステップからの距離を、その都度ライブな rate() で計算する。
       // まだ発音していない限り何度でも再計算されるため、速度変更が次の
       // scheduler() 実行(最大 SCHEDULER_INTERVAL_MS 後)で反映される
-      const targetTime = anchorTime + scheduleTime(step.tick - anchorTick, rate());
-      if (targetTime >= audioContext.currentTime + SCHEDULE_AHEAD_SECONDS) break;
+      const naturalTime = anchorTime + scheduleTime(step.tick - anchorTick, rate());
+      if (naturalTime >= audioContext.currentTime + SCHEDULE_AHEAD_SECONDS) break;
+      // 低速再生中に高速側へ切り替えると naturalTime が過去時刻になりうる。
+      // 過去の時刻を渡すと gain envelope も過去のものとして扱われ無音のまま
+      // スキップされてしまうため、現在時刻に繰り上げて確実に発音させる
+      const targetTime = Math.max(naturalTime, audioContext.currentTime);
 
       const notes = visibleNotes(step);
       for (const note of notes) {
