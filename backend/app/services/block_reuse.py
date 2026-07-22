@@ -13,7 +13,7 @@
   (非常に大きな和音では実際の配線距離がこの見積りを超える可能性が残る)
 """
 
-from app.models.blueprint import Layout, Step
+from app.models.blueprint import Layout, Step, Warning
 
 DUST_MAX_RANGE_BLOCKS = 15
 BRANCH_RESERVE_BLOCKS = 5  # 分岐方向の深さ + バスをまたぐ迂回分の見積り
@@ -49,3 +49,26 @@ def assign_block_reuse(steps: list[Step], layout: Layout) -> list[Step]:
                 )
         new_steps.append(step.model_copy(update={"notes": new_notes}))
     return new_steps
+
+
+def build_reuse_warning(steps: list[Step]) -> Warning | None:
+    """再利用の配線は通常のダストと同じく双方向に信号が伝わるため、本線バスや
+    他ステップの分岐に接触すると誤発火(early trigger)を招く。リピーター等の
+    絶縁部材を挟むと必ず1RT以上の遅延が生じ tick 精度が崩れるため、本実装では
+    絶縁部材を足す代わりに「本線バスに接触しない経路で迂回する」ことを警告として
+    明示する(部材追加無しでタイミング精度を保てる)。
+    """
+    reused_step_indices = sorted(
+        {step.index for step in steps if any(n.reused_from_step is not None for n in step.notes)}
+    )
+    if not reused_step_indices:
+        return None
+    return Warning(
+        type="block_reuse",
+        message=(
+            "音符ブロックを再利用している箇所があります。再利用の配線は本線バスや"
+            "他のステップの分岐ダストに接触しない経路で迂回してください"
+            "(接触すると信号が逆流し、他のステップが誤発火する恐れがあります)"
+        ),
+        steps=reused_step_indices,
+    )

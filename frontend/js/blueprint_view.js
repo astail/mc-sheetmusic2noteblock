@@ -9,6 +9,7 @@ const WARNING_LABELS = {
   tempo_change: "テンポ変化",
   merge: "音のマージ",
   repeater_limit: "曲の分割提案",
+  block_reuse: "ブロック再利用",
 };
 
 const HAND_LABELS = { right: "右手", left: "左手", percussion: "打楽器" };

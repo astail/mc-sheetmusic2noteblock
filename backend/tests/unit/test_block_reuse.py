@@ -1,7 +1,11 @@
 """block_reuse の単体テスト: 配線距離による再利用可否とブロック番号の割当。"""
 
 from app.models.blueprint import Layout, LayoutSegment, NotePlacement, Repeaters, Step
-from app.services.block_reuse import MAX_REUSE_DISTANCE_BLOCKS, assign_block_reuse
+from app.services.block_reuse import (
+    MAX_REUSE_DISTANCE_BLOCKS,
+    assign_block_reuse,
+    build_reuse_warning,
+)
 
 LAYOUT_TYPE = "comb_bus"
 LAYOUT_DESCRIPTION = "test"
@@ -103,3 +107,22 @@ def test_multiple_notes_in_a_chord_get_independent_block_ids():
     result = assign_block_reuse(steps, layout)
     harp_note, bass_note = result[0].notes
     assert harp_note.block_id != bass_note.block_id
+
+
+def test_build_reuse_warning_none_when_no_reuse():
+    steps = [_step(0, [_note(instrument="harp", clicks=6)]), _step(1, [_note(instrument="bass", clicks=3)])]
+    layout = _layout({0: 0, 1: 1})
+    result = assign_block_reuse(steps, layout)
+    assert build_reuse_warning(result) is None
+
+
+def test_build_reuse_warning_lists_reusing_steps():
+    steps = [_step(0, [_note()]), _step(1, [_note()])]
+    layout = _layout({0: 0, 1: 1})
+    result = assign_block_reuse(steps, layout)
+    warning = build_reuse_warning(result)
+    assert warning is not None
+    assert warning.type == "block_reuse"
+    assert warning.steps == [1]  # 再利用側(reused_from_step が設定された)ステップのみ
+    assert "本線バス" in warning.message
+    assert "誤発火" in warning.message

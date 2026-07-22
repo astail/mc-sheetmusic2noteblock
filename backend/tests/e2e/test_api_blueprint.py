@@ -217,3 +217,6 @@ def test_repeated_notes_reuse_the_same_block():
     for n in reused:
         assert n["block_id"] is not None
     assert any("再利用" in note for note in bp["materials"]["notes"])
+    reuse_warning = next(w for w in bp["warnings"] if w["type"] == "block_reuse")
+    assert "本線バス" in reuse_warning["message"]
+    assert len(reuse_warning["steps"]) > 0
