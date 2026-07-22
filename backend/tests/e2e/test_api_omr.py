@@ -253,6 +253,21 @@ def test_cancelled_finalize_does_not_discard_a_completed_job(monkeypatch):
         assert score.status_code == 200
 
 
+def test_interrupted_job_with_registered_score_cleans_up_orphan_score():
+    queued = storage.create_omr_job("scan.pdf", b"pending")
+    score_id = storage.create_score("scan.mxl", _mxl_fixture())
+    storage.update_omr_job(queued.job_id, "running", score_id=score_id)
+
+    with TestClient(app) as client:
+        response = client.get(f"/api/omr/jobs/{queued.job_id}")
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["status"] == "failed"
+    assert result["error"]["code"] == "OMR_INTERRUPTED"
+    assert not storage.score_dir(score_id).exists()
+
+
 def test_invalid_upload_and_job_ids_are_rejected(monkeypatch):
     app.dependency_overrides[omr.get_omr_client] = SuccessfulOmr
     monkeypatch.setattr(omr, "MAX_UPLOAD_BYTES", 3)

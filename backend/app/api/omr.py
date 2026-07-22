@@ -118,10 +118,14 @@ async def _finalize_job_done(job_id: str, score_id: str) -> None:
 
 async def _fail_job(job_id: str, error: OmrJobError) -> None:
     try:
+        previous = await asyncio.to_thread(storage.load_omr_job, job_id)
         await asyncio.to_thread(storage.update_omr_job, job_id, "failed", error=error)
     except (OSError, storage.OmrJobDataError, ValueError):
         # 永続ストレージ自体が壊れている場合は task の例外を外へ漏らさない。
-        pass
+        return
+    if previous is not None and previous.score_id is not None:
+        # done 確定前に score だけ登録が完了していた場合、失敗確定時に孤立を残さない。
+        shutil.rmtree(storage.score_dir(previous.score_id), ignore_errors=True)
 
 
 async def _run_job(job_id: str, client: OmrClient) -> None:
@@ -135,6 +139,9 @@ async def _run_job(job_id: str, client: OmrClient) -> None:
             mxl_content = await client.transcribe(input_path, record.source_filename)
             score_id = await _register_score_shielded(
                 record.source_filename, mxl_content
+            )
+            await asyncio.to_thread(
+                storage.update_omr_job, job_id, "running", score_id=score_id
             )
             try:
                 await _finalize_job_done(job_id, score_id)
