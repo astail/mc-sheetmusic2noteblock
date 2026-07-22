@@ -19,13 +19,23 @@ export function frequencyFromClicks(instrument, clicks) {
   return midiToFrequency(base + clicks);
 }
 
-// 現在のプリセット(bass_harp_bell / harp_only)が生成しうる音色を
-// RESEARCH.md §5 の3レシピ系統にマップする。pling(harp と同系統)/
-// chime(bell と同系統)など未生成の音色は投機的実装を避けここに含めない。
+// custom プリセット(issue #46)では instruments.py の melodic 13音色すべてが
+// 選ばれうるため、個別の合成音を持たない音色は RESEARCH.md §5 が示す同系統
+// (同音域帯の代替音色)のレシピを流用する。
 const RECIPE_BY_INSTRUMENT = {
-  harp: "pluck", // 減衰の速い三角波 + ローパス
   bass: "low", // 矩形波の低域
+  didgeridoo: "low", // bass と同音域の代替音色(RESEARCH.md §1)
+  harp: "pluck", // 減衰の速い三角波 + ローパス
+  iron_xylophone: "pluck", // harp と同音域の別音色
+  pling: "pluck", // 〃(RESEARCH.md §5)
+  bit: "pluck", // 〃
+  banjo: "pluck", // 〃
+  guitar: "pluck", // 中低音の弦系音色として pluck 系統を流用
+  cow_bell: "bell", // 中高音の金属/持続系音色として bell 系統を流用
+  flute: "bell", // 〃
   bell: "bell", // 倍音を重ねたサイン波 + 長めの減衰
+  chime: "bell", // bell と同音域の別音色(RESEARCH.md §5)
+  xylophone: "bell", // 〃
   basedrum: "noise-low", // ノイズ + ローパス(打楽器。音程の概念がない)
   snare: "noise-mid", // ノイズ + バンドパス
   hat: "noise-high", // ノイズ + ハイパス

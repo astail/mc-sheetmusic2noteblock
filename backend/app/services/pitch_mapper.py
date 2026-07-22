@@ -5,6 +5,10 @@
   30 未満・102 超はオクターブシフトして音域に収め、octave_shift 警告を生成する。
 プリセット harp_only(素材節約):
   全音を harp の2オクターブ(MIDI 54〜78)にオクターブ折込する。
+プリセット custom(ConversionSettings.custom_ranges):
+  ユーザーが選んだ音色ごとに range_start_midi(その音色を使い始める元曲側のMIDI番号)
+  で境界を決める。各音色自体の物理的な基準音(clicks=0の実際の音高)は変えられない
+  ため、境界で音色を選んだ後、その音色自身の物理レンジへオクターブシフトする。
 
 打楽器(GM percussion map の実キー番号 → basedrum/snare/hat の3音色):
   クリック数は音程ではなく打楽器の音色そのものを鳴らすためのものなので、
@@ -14,6 +18,7 @@
 from pydantic import BaseModel
 
 from app.models.blueprint import Warning
+from app.models.settings import CustomRange
 from app.services.instruments import INSTRUMENTS
 
 PRESET_MIN = 30
@@ -118,6 +123,50 @@ def map_pitch(
         instrument = _instrument_for(midi)
     clicks = midi - INSTRUMENTS[instrument].base_midi
     return MappedNote(instrument=instrument, clicks=clicks, octave_shift=octave_shift)
+
+
+def validate_custom_ranges(custom_ranges: list[CustomRange] | None) -> None:
+    if not custom_ranges:
+        raise ValueError("custom プリセットには custom_ranges の指定が必要です")
+    names = [r.instrument for r in custom_ranges]
+    if len(names) != len(set(names)):
+        raise ValueError("custom_ranges に同じ音色を複数回指定することはできません")
+    starts = [r.range_start_midi for r in custom_ranges]
+    if len(starts) != len(set(starts)):
+        # 同じ境界を複数の音色が持つと、境界以上の音が常に後勝ちで1音色に固定され、
+        # もう一方が事実上選べなくなってしまうため拒否する
+        raise ValueError("custom_ranges に同じ切り替え開始音(range_start_midi)を複数指定することはできません")
+    for name in names:
+        inst = INSTRUMENTS.get(name)
+        if inst is None or inst.is_percussion:
+            raise ValueError(f"custom_ranges に無効な音色が含まれています: {name}")
+
+
+def map_custom(
+    midi_pitch: int,
+    custom_ranges: list[CustomRange],
+    transpose_semitones: int = 0,
+) -> MappedNote:
+    """range_start_midi はどの音色を使うかを決める境界(元曲側のMIDI番号)であり、
+    音色自体の物理的な基準音(clicks=0の実際の音高)はinstruments.pyのbase_midiで
+    固定されている(音符ブロックの物理仕様上、ソフトウェアでは変更できない)。
+    このため境界で音色を選んだ後、その音色自身の物理レンジへ改めてオクターブシフトする。
+    """
+    midi = midi_pitch + transpose_semitones
+    ranges = sorted(custom_ranges, key=lambda r: r.range_start_midi)
+    chosen = ranges[0]
+    for r in ranges:
+        if r.range_start_midi <= midi:
+            chosen = r
+        else:
+            break
+    inst = INSTRUMENTS[chosen.instrument]
+    shifted, octave_shift = _shift_into_range(midi, inst.base_midi, inst.base_midi + 24)
+    return MappedNote(
+        instrument=chosen.instrument,
+        clicks=shifted - inst.base_midi,
+        octave_shift=octave_shift,
+    )
 
 
 def map_percussion(midi_pitch: int) -> MappedNote:

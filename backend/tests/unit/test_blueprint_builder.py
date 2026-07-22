@@ -2,9 +2,12 @@
 
 from pathlib import Path
 
+import pytest
+
 from app import config
 from app.models.blueprint import Blueprint, Materials
 from app.models.events import NoteEvent
+from app.models.settings import CustomRange
 from app.services.blueprint_builder import (
     build_blueprint_parts,
     decompose_delay,
@@ -241,3 +244,41 @@ def test_seconds_mode_meta_without_bpm():
     assert meta.effective_bpm is None
     assert meta.ticks_per_quarter is None
     assert meta.step_count == 1
+
+
+def test_custom_preset_maps_notes_via_custom_ranges():
+    quantized = [_qe(0, midi=60)]
+    _, steps, _ = _build(
+        quantized,
+        ["right"],
+        preset="custom",
+        custom_ranges=[CustomRange(instrument="harp", range_start_midi=54)],
+    )
+    placed = steps[0].notes[0]
+    assert placed.instrument == "harp"
+    assert placed.clicks == 6
+    assert placed.midi == 60
+    assert placed.note_name == "C4"
+
+
+def test_custom_preset_note_reflects_instruments_own_physical_pitch():
+    # range_start_midi(60) は音色を選ぶ境界でしかない。bell 自身の物理的な基準音
+    # (78、instruments.py)は変えられないため、実際に鳴る高さへオクターブシフトされる
+    quantized = [_qe(0, midi=60)]
+    _, steps, _ = _build(
+        quantized,
+        ["right"],
+        preset="custom",
+        custom_ranges=[CustomRange(instrument="bell", range_start_midi=60)],
+    )
+    placed = steps[0].notes[0]
+    assert placed.instrument == "bell"
+    assert placed.clicks == 6
+    assert placed.midi == 84
+    assert placed.octave_shift == 2
+
+
+def test_custom_preset_without_ranges_raises():
+    quantized = [_qe(0, midi=60)]
+    with pytest.raises(ValueError):
+        _build(quantized, ["right"], preset="custom", custom_ranges=None)
