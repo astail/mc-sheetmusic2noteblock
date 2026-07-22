@@ -2,9 +2,12 @@
 
 from pathlib import Path
 
+import pytest
+
 from app import config
 from app.models.blueprint import Blueprint, Materials
 from app.models.events import NoteEvent
+from app.models.settings import CustomRange
 from app.services.blueprint_builder import (
     build_blueprint_parts,
     decompose_delay,
@@ -241,3 +244,22 @@ def test_seconds_mode_meta_without_bpm():
     assert meta.effective_bpm is None
     assert meta.ticks_per_quarter is None
     assert meta.step_count == 1
+
+
+def test_custom_preset_maps_notes_via_custom_ranges():
+    quantized = [_qe(0, midi=60)]
+    _, steps, _ = _build(
+        quantized,
+        ["right"],
+        preset="custom",
+        custom_ranges=[CustomRange(instrument="bell", base_midi=60)],
+    )
+    placed = steps[0].notes[0]
+    assert placed.instrument == "bell"
+    assert placed.clicks == 0
+
+
+def test_custom_preset_without_ranges_raises():
+    quantized = [_qe(0, midi=60)]
+    with pytest.raises(ValueError):
+        _build(quantized, ["right"], preset="custom", custom_ranges=None)

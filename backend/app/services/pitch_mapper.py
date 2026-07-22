@@ -5,6 +5,9 @@
   30 未満・102 超はオクターブシフトして音域に収め、octave_shift 警告を生成する。
 プリセット harp_only(素材節約):
   全音を harp の2オクターブ(MIDI 54〜78)にオクターブ折込する。
+プリセット custom(ConversionSettings.custom_ranges):
+  ユーザーが選んだ音色ごとに base_midi(0クリックのMIDI番号)を割り当てる。
+  該当レンジが無い音はオクターブシフトして最も近いレンジに収める。
 
 打楽器(GM percussion map の実キー番号 → basedrum/snare/hat の3音色):
   クリック数は音程ではなく打楽器の音色そのものを鳴らすためのものなので、
@@ -14,6 +17,7 @@
 from pydantic import BaseModel
 
 from app.models.blueprint import Warning
+from app.models.settings import CustomRange
 from app.services.instruments import INSTRUMENTS
 
 PRESET_MIN = 30
@@ -118,6 +122,43 @@ def map_pitch(
         instrument = _instrument_for(midi)
     clicks = midi - INSTRUMENTS[instrument].base_midi
     return MappedNote(instrument=instrument, clicks=clicks, octave_shift=octave_shift)
+
+
+def validate_custom_ranges(custom_ranges: list[CustomRange] | None) -> None:
+    if not custom_ranges:
+        raise ValueError("custom プリセットには custom_ranges の指定が必要です")
+    names = [r.instrument for r in custom_ranges]
+    if len(names) != len(set(names)):
+        raise ValueError("custom_ranges に同じ音色を複数回指定することはできません")
+    for name in names:
+        inst = INSTRUMENTS.get(name)
+        if inst is None or inst.is_percussion:
+            raise ValueError(f"custom_ranges に無効な音色が含まれています: {name}")
+
+
+def map_custom(
+    midi_pitch: int,
+    custom_ranges: list[CustomRange],
+    transpose_semitones: int = 0,
+) -> MappedNote:
+    midi = midi_pitch + transpose_semitones
+    ranges = sorted(custom_ranges, key=lambda r: r.base_midi)
+    for r in ranges:
+        if r.base_midi <= midi <= r.base_midi + 24:
+            return MappedNote(instrument=r.instrument, clicks=midi - r.base_midi, octave_shift=0)
+    # どのレンジにも収まらない音は、最もシフト量が小さいレンジへオクターブシフトする
+    best_range, best_midi, best_shift = min(
+        (
+            (r, *_shift_into_range(midi, r.base_midi, r.base_midi + 24))
+            for r in ranges
+        ),
+        key=lambda candidate: abs(candidate[2]),
+    )
+    return MappedNote(
+        instrument=best_range.instrument,
+        clicks=best_midi - best_range.base_midi,
+        octave_shift=best_shift,
+    )
 
 
 def map_percussion(midi_pitch: int) -> MappedNote:

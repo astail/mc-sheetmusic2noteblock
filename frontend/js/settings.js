@@ -6,6 +6,24 @@ import { setState, subscribe } from "./state.js";
 
 export const TPQ_OPTIONS = [3, 4, 5, 6, 8]; // 実効BPM 200/150/120/100/75
 
+// custom プリセットのレンジエディタが選択肢として出す melodic 13音色
+// (backend/app/services/instruments.py と一致させる。打楽器3音色は対象外)
+export const MELODIC_INSTRUMENTS = [
+  { name: "bass", ja: "ベース", blockJa: "オークの板材", baseMidi: 30 },
+  { name: "didgeridoo", ja: "ディジュリドゥ", blockJa: "パンプキン", baseMidi: 30 },
+  { name: "guitar", ja: "ギター", blockJa: "羊毛(白)", baseMidi: 42 },
+  { name: "harp", ja: "ハープ", blockJa: "土(デフォルト系)", baseMidi: 54 },
+  { name: "iron_xylophone", ja: "鉄琴", blockJa: "鉄ブロック", baseMidi: 54 },
+  { name: "pling", ja: "プリング", blockJa: "グロウストーン", baseMidi: 54 },
+  { name: "bit", ja: "ビット", blockJa: "エメラルドブロック", baseMidi: 54 },
+  { name: "banjo", ja: "バンジョー", blockJa: "干草の俵", baseMidi: 54 },
+  { name: "cow_bell", ja: "カウベル", blockJa: "ソウルサンド", baseMidi: 66 },
+  { name: "flute", ja: "フルート", blockJa: "粘土", baseMidi: 66 },
+  { name: "bell", ja: "ベル", blockJa: "金ブロック", baseMidi: 78 },
+  { name: "chime", ja: "チャイム", blockJa: "パックドアイス", baseMidi: 78 },
+  { name: "xylophone", ja: "木琴", blockJa: "骨ブロック", baseMidi: 78 },
+];
+
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 export function noteName(midi) {
@@ -30,7 +48,15 @@ export function describeTpq(tpq, originalBpm) {
 }
 
 // フォーム値 → ConversionSettings。auto の手割当は送らず、小節範囲は両方入力時のみ
-export function collectSettings({ tpq, preset, transpose, handChoices, measureStart, measureEnd }) {
+export function collectSettings({
+  tpq,
+  preset,
+  transpose,
+  handChoices,
+  measureStart,
+  measureEnd,
+  customRanges,
+}) {
   const settings = {
     ticks_per_quarter: tpq,
     instrument_preset: preset,
@@ -44,7 +70,18 @@ export function collectSettings({ tpq, preset, transpose, handChoices, measureSt
   if (measureStart != null && measureEnd != null) {
     settings.measure_range = [measureStart, measureEnd];
   }
+  if (preset === "custom") {
+    settings.custom_ranges = customRanges;
+  }
   return settings;
+}
+
+export function validateCustomRanges(preset, customRanges) {
+  if (preset !== "custom") return null;
+  if (!customRanges || customRanges.length === 0) {
+    return "custom を選ぶ場合は音色を1つ以上選択してください";
+  }
+  return null;
 }
 
 export function validateMeasureRange(start, end, measureCount) {
@@ -105,6 +142,18 @@ function renderPanel(body, state) {
     const selected = tpq === (state.recommendedTpq ?? 4) ? "selected" : "";
     return `<option value="${tpq}" ${selected}>tpq ${tpq} — ${recommended}${describeTpq(tpq, s.original_bpm)}</option>`;
   }).join("");
+  const customRangeRows = MELODIC_INSTRUMENTS.map(
+    (inst) => `
+      <tr>
+        <td><input type="checkbox" class="custom-range-enable" data-instrument="${inst.name}"></td>
+        <td>${inst.ja}</td>
+        <td>${inst.blockJa}</td>
+        <td>
+          <input type="number" class="custom-range-base-midi" data-instrument="${inst.name}"
+                 value="${inst.baseMidi}" min="0" max="127" step="1" disabled>
+        </td>
+      </tr>`,
+  ).join("");
 
   body.innerHTML = `
     <dl class="summary-list">
@@ -125,6 +174,7 @@ function renderPanel(body, state) {
         <select id="preset-select">
           <option value="bass_harp_bell">bass_harp_bell(既定)</option>
           <option value="harp_only">harp_only(素材節約)</option>
+          <option value="custom">custom(音色ごとに音域を指定)</option>
         </select>
       </label>
       <label>移調(半音)
@@ -138,17 +188,41 @@ function renderPanel(body, state) {
         </span>
       </label>
     </div>
+    <div id="custom-ranges-editor" class="custom-ranges-editor" hidden>
+      <p class="custom-ranges-note">
+        custom を選んだ場合、使用する音色にチェックを入れ、基準音(0クリック時のMIDI番号)を指定してください。
+      </p>
+      <table class="custom-ranges-table">
+        <thead><tr><th></th><th>音色</th><th>下に置くブロック</th><th>基準音(0クリック)</th></tr></thead>
+        <tbody>${customRangeRows}</tbody>
+      </table>
+    </div>
     <button type="button" id="generate-button" class="generate-button">設計書を生成</button>
     <p id="settings-status" class="upload-status" hidden></p>
   `;
 
   const status = body.querySelector("#settings-status");
   const generateButton = body.querySelector("#generate-button");
+  const presetSelect = body.querySelector("#preset-select");
+  const customRangesEditor = body.querySelector("#custom-ranges-editor");
 
   function showStatus(message, kind) {
     status.hidden = false;
     status.textContent = message;
     status.className = `upload-status upload-status--${kind}`;
+  }
+
+  presetSelect.addEventListener("change", () => {
+    customRangesEditor.hidden = presetSelect.value !== "custom";
+  });
+
+  for (const checkbox of body.querySelectorAll(".custom-range-enable")) {
+    checkbox.addEventListener("change", () => {
+      const baseMidiInput = body.querySelector(
+        `.custom-range-base-midi[data-instrument="${checkbox.dataset.instrument}"]`,
+      );
+      baseMidiInput.disabled = !checkbox.checked;
+    });
   }
 
   generateButton.addEventListener("click", async () => {
@@ -165,13 +239,31 @@ function renderPanel(body, state) {
       showStatus(rangeError, "error");
       return;
     }
+    const preset = presetSelect.value;
+    const customRanges = [];
+    for (const checkbox of body.querySelectorAll(".custom-range-enable")) {
+      if (!checkbox.checked) continue;
+      const baseMidiInput = body.querySelector(
+        `.custom-range-base-midi[data-instrument="${checkbox.dataset.instrument}"]`,
+      );
+      customRanges.push({
+        instrument: checkbox.dataset.instrument,
+        base_midi: baseMidiInput.valueAsNumber,
+      });
+    }
+    const customRangesError = validateCustomRanges(preset, customRanges);
+    if (customRangesError) {
+      showStatus(customRangesError, "error");
+      return;
+    }
     const settings = collectSettings({
       tpq: Number(body.querySelector("#tpq-select").value),
-      preset: body.querySelector("#preset-select").value,
+      preset,
       transpose: Number(body.querySelector("#transpose-input").value) || 0,
       handChoices,
       measureStart,
       measureEnd,
+      customRanges,
     });
     const requestedScoreId = state.scoreId;
     showStatus("設計書を生成中…", "busy");

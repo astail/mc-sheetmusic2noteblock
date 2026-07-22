@@ -17,9 +17,10 @@ from app.models.blueprint import (
     Step,
     Warning,
 )
+from app.models.settings import CustomRange
 from app.services.hand_split import Hand
 from app.services.instruments import INSTRUMENTS
-from app.services.pitch_mapper import map_percussion, map_pitch
+from app.services.pitch_mapper import map_custom, map_percussion, map_pitch, validate_custom_ranges
 from app.services.quantizer import QuantizedEvent
 
 TICK_SECONDS = 0.1
@@ -50,6 +51,7 @@ def build_blueprint_parts(
     quantization_stats: QuantizationStats,
     preset: str = "bass_harp_bell",
     transpose_semitones: int = 0,
+    custom_ranges: list[CustomRange] | None = None,
 ) -> tuple[Meta, list[Step], list[Warning]]:
     """Step 列・meta・警告(big_chord / octave_shift / repeater_limit)を組み立てる。
 
@@ -59,6 +61,8 @@ def build_blueprint_parts(
     hand が "other" のイベントは設計書から除外する。
     ticks_per_quarter / effective_bpm は seconds モードでは None。
     """
+    if preset == "custom":
+        validate_custom_ranges(custom_ranges)
     by_tick: dict[int, list[NotePlacement]] = defaultdict(list)
     shifted_notes = 0
     shift_amounts: list[int] = []
@@ -71,6 +75,10 @@ def build_blueprint_parts(
             continue
         if hand == "percussion":
             mapped = map_percussion(q.event.midi_pitch)
+        elif preset == "custom":
+            mapped = map_custom(
+                q.event.midi_pitch, custom_ranges, transpose_semitones=transpose_semitones
+            )
         else:
             mapped = map_pitch(
                 q.event.midi_pitch, preset=preset, transpose_semitones=transpose_semitones

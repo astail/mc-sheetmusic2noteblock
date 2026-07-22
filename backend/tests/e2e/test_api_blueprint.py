@@ -75,12 +75,29 @@ def test_invalid_settings_returns_422():
     assert res.status_code == 422
 
 
-def test_custom_preset_returns_422_until_implemented():
+def test_custom_preset_without_ranges_returns_422():
     score_id = _upload("scale_c_major.musicxml")
     res = client.post(
         f"/api/scores/{score_id}/blueprint", json={"instrument_preset": "custom"}
     )
     assert res.status_code == 422
+
+
+def test_custom_preset_with_ranges_maps_notes_to_chosen_instrument():
+    score_id = _upload("scale_c_major.musicxml")  # C4(60)〜C5(72) の8音
+    res = client.post(
+        f"/api/scores/{score_id}/blueprint",
+        json={
+            "instrument_preset": "custom",
+            "custom_ranges": [{"instrument": "bell", "base_midi": 60}],
+        },
+    )
+    assert res.status_code == 200
+    bp = res.json()
+    notes = [n for s in bp["steps"] for n in s["notes"]]
+    assert all(n["instrument"] == "bell" for n in notes)
+    assert notes[0]["clicks"] == 0  # C4 = base_midi
+    assert notes[-1]["clicks"] == 12  # C5 = base_midi + 12
 
 
 def test_measure_range_converts_only_selected_musicxml_measure():

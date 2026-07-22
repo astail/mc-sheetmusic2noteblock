@@ -171,7 +171,8 @@ body {
   margin: 0;
 }
 
-.tracks-table {
+.tracks-table,
+.custom-ranges-table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 16px;
@@ -179,7 +180,9 @@ body {
 }
 
 .tracks-table th,
-.tracks-table td {
+.tracks-table td,
+.custom-ranges-table th,
+.custom-ranges-table td {
   border: 1px solid var(--color-border);
   padding: 6px 10px;
   text-align: left;
@@ -207,6 +210,19 @@ body {
   border-radius: 6px;
   font-size: 1rem;
   color: var(--color-text);
+}
+
+.custom-ranges-editor {
+  margin-bottom: 16px;
+}
+
+.custom-ranges-note {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.custom-ranges-editor .custom-range-base-midi {
+  width: 5em;
 }
 
 .measure-range {
