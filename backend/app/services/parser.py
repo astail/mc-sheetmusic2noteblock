@@ -2,8 +2,9 @@
 
 - 和音(Chord)は個々のノートに展開する
 - タイは stripTies で結合し onset のみ採用(duration は結合後の長さを保持)
-- MIDI ch10(打楽器)のトラックは is_percussion フラグを付け、NoteEvent には展開しない
-  (通常マッピングから除外。Phase 5 issue #44 で対応)
+- MIDI ch10(打楽器)のトラックは is_percussion フラグを付ける。Unpitched ノートは
+  GM percussion map 上の実際の打楽器キー番号(storedInstrument.percMapPitch)を
+  midi_pitch として NoteEvent 化する(pitch_mapper.map_percussion が3音色へ振り分ける)
 """
 
 import re
@@ -54,10 +55,17 @@ def _staff_number_of(part: m21stream.Stream) -> int | None:
 
 
 def _channel_of(part: m21stream.Stream) -> int | None:
-    inst = part.getInstrument(returnDefault=False)
+    # 打楽器パートは Instrument が Part 直下でなくネストして挿入されるため recurse が必要
+    inst = part.getInstrument(returnDefault=False, recurse=True)
     if inst is not None and inst.midiChannel is not None:
         return inst.midiChannel + 1  # music21 は 0 始まり(9 = 打楽器 ch10)
     return None
+
+
+def _percussion_midi_pitch(n) -> int | None:
+    stored = getattr(n, "storedInstrument", None)
+    pitch = getattr(stored, "percMapPitch", None) if stored is not None else None
+    return int(pitch) if pitch is not None else None
 
 
 def _iter_note_events(
@@ -75,7 +83,30 @@ def _iter_note_events(
             beat = float(n.beat)
         except Exception:
             beat = None
-        for pitch in getattr(n, "pitches", ()):  # Chord は展開、Unpitched は空でスキップ
+        pitches = getattr(n, "pitches", ())
+        if not pitches:
+            # Unpitched(打楽器)は GM percussion map 上のキー番号を midi_pitch とする。
+            # 対応するキーが無い場合(GM 標準外)は変換対象から静かに除外する
+            if channel != 10:
+                continue
+            percussion_pitch = _percussion_midi_pitch(n)
+            if percussion_pitch is None:
+                continue
+            yield NoteEvent(
+                offset_ql=offset,
+                offset_seconds=offset_seconds,
+                duration_ql=float(n.duration.quarterLength),
+                midi_pitch=percussion_pitch,
+                part_id=part_id,
+                staff_number=staff_number,
+                track_index=track_index,
+                channel=channel,
+                measure=n.measureNumber,
+                beat=beat,
+                tie=n.tie.type if n.tie is not None else None,
+            )
+            continue
+        for pitch in pitches:  # Chord は個々のノートに展開
             yield NoteEvent(
                 offset_ql=offset,
                 offset_seconds=offset_seconds,
@@ -166,12 +197,8 @@ def parse_score(
         staff_number = _staff_number_of(part)
         channel = _channel_of(part)
         is_percussion = channel == 10
-        part_events = (
-            []
-            if is_percussion
-            else list(
-                _iter_note_events(part, part_id, staff_number, index, channel, seconds_by_id)
-            )
+        part_events = list(
+            _iter_note_events(part, part_id, staff_number, index, channel, seconds_by_id)
         )
         if measure_range is not None:
             part_events = [

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from app.services.parser import parse_score
-from app.services.pitch_mapper import build_octave_shift_warning, map_pitch
+from app.services.pitch_mapper import build_octave_shift_warning, map_percussion, map_pitch
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -115,3 +115,23 @@ def test_harp_only_fixture_warning_counts_folded_notes():
 def test_harp_only_with_transpose():
     mapped = map_pitch(53, preset="harp_only", transpose_semitones=1)  # 54 ちょうど
     assert (mapped.instrument, mapped.clicks, mapped.octave_shift) == ("harp", 0, 0)
+
+
+def test_percussion_maps_gm_keys_to_three_timbres():
+    # bass drum / snare / closed+open hi-hat / crash(RESEARCH.md §1 の打楽器3音色)
+    assert map_percussion(36).instrument == "basedrum"
+    assert map_percussion(38).instrument == "snare"
+    assert map_percussion(42).instrument == "hat"
+    assert map_percussion(46).instrument == "hat"
+    assert map_percussion(49).instrument == "hat"
+
+
+def test_percussion_always_uses_base_click_with_no_shift():
+    for key in (36, 38, 42):
+        mapped = map_percussion(key)
+        assert mapped.clicks == 0
+        assert mapped.octave_shift == 0
+
+
+def test_percussion_unknown_key_falls_back_to_snare():
+    assert map_percussion(1).instrument == "snare"

@@ -26,6 +26,9 @@ const RECIPE_BY_INSTRUMENT = {
   harp: "pluck", // 減衰の速い三角波 + ローパス
   bass: "low", // 矩形波の低域
   bell: "bell", // 倍音を重ねたサイン波 + 長めの減衰
+  basedrum: "noise-low", // ノイズ + ローパス(打楽器。音程の概念がない)
+  snare: "noise-mid", // ノイズ + バンドパス
+  hat: "noise-high", // ノイズ + ハイパス
 };
 
 function recipeFor(instrument) {
@@ -67,16 +70,50 @@ export function createLimiter(audioContext) {
   return limiter;
 }
 
+// ノイズ系レシピ(打楽器)ごとのフィルタ設定。音程の概念がないため周波数は固定値
+const NOISE_DURATION_SECONDS = 0.2;
+const NOISE_FILTER_BY_RECIPE = {
+  "noise-low": { type: "lowpass", frequency: 150 },
+  "noise-mid": { type: "bandpass", frequency: 900 },
+  "noise-high": { type: "highpass", frequency: 6000 },
+};
+
+// ホワイトノイズをフィルタに通して短く減衰させる(打楽器のアタック音を模す)
+function playNoise(audioContext, gainNode, recipe, startTime, peak) {
+  const bufferSize = Math.ceil(audioContext.sampleRate * NOISE_DURATION_SECONDS);
+  const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  const source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  const filter = audioContext.createBiquadFilter();
+  const { type, frequency } = NOISE_FILTER_BY_RECIPE[recipe];
+  filter.type = type;
+  filter.frequency.setValueAtTime(frequency, startTime);
+  source.connect(filter);
+  filter.connect(gainNode);
+  gainNode.gain.linearRampToValueAtTime(peak, startTime + 0.002);
+  gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + NOISE_DURATION_SECONDS);
+  source.start(startTime);
+  source.stop(startTime + NOISE_DURATION_SECONDS);
+  return { stop: () => source.stop() };
+}
+
 // audioContext の destination に音符1つ分の音源をスケジュールする。
 // polyphony はそのステップの同時発音数(#33 player.js が呼び出し時に渡す)。
 // destination は createLimiter() の出力を経由させること(余韻の重なり対策)。
 export function playNote(audioContext, destination, { instrument, midi, startTime, polyphony = 1 }) {
   const recipe = recipeFor(instrument);
-  const frequency = midiToFrequency(midi);
   const peak = normalizedGain(polyphony);
   const gainNode = audioContext.createGain();
   gainNode.gain.setValueAtTime(0, startTime);
   gainNode.connect(destination);
+
+  if (recipe in NOISE_FILTER_BY_RECIPE) {
+    return playNoise(audioContext, gainNode, recipe, startTime, peak);
+  }
+
+  const frequency = midiToFrequency(midi);
 
   if (recipe === "pluck") {
     const osc = audioContext.createOscillator();

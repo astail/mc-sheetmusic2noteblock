@@ -72,6 +72,18 @@ def test_sixteenth_150bpm():
     assert offsets == [i * 0.25 for i in range(16)]
 
 
+def test_drum_beat_percussion_track():
+    # channel 10 は GM percussion map の実キー番号を midi_pitch として展開する
+    parsed = parse_score(FIXTURES / "drum_beat.mid")
+    assert parsed.summary.note_count == 5
+    percussion_tracks = [t for t in parsed.summary.tracks if t.is_percussion]
+    assert len(percussion_tracks) == 1
+    assert percussion_tracks[0].note_count == 5
+    assert [e.channel for e in parsed.events] == [10] * 5
+    # bass drum(36), snare(38), closed hihat(42), open hihat(46), crash(49)
+    assert [e.midi_pitch for e in parsed.events] == [36, 38, 42, 46, 49]
+
+
 def test_original_bpm_normalized_to_quarter_bpm(tmp_path):
     from music21 import meter, note, stream, tempo
 

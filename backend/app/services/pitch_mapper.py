@@ -5,6 +5,10 @@
   30 未満・102 超はオクターブシフトして音域に収め、octave_shift 警告を生成する。
 プリセット harp_only(素材節約):
   全音を harp の2オクターブ(MIDI 54〜78)にオクターブ折込する。
+
+打楽器(GM percussion map の実キー番号 → basedrum/snare/hat の3音色):
+  クリック数は音程ではなく打楽器の音色そのものを鳴らすためのものなので、
+  基準音(clicks=0)に固定する。オクターブシフトの概念もないため常に0。
 """
 
 from pydantic import BaseModel
@@ -16,6 +20,59 @@ PRESET_MIN = 30
 PRESET_MAX = 102
 HARP_MIN = 54
 HARP_MAX = 78
+
+# GM percussion map(標準キー35〜81)→ basedrum(低音・胴鳴り)/ snare(乾いた鋭い打撃・擦過音)/
+# hat(金属的な高音)の3音色。未定義キーは snare にフォールバックする
+PERCUSSION_INSTRUMENT_MAP: dict[int, str] = {
+    35: "basedrum",  # Acoustic Bass Drum
+    36: "basedrum",  # Bass Drum 1
+    41: "basedrum",  # Low Floor Tom
+    43: "basedrum",  # High Floor Tom
+    45: "basedrum",  # Low Tom
+    47: "basedrum",  # Low-Mid Tom
+    48: "basedrum",  # Hi-Mid Tom
+    50: "basedrum",  # High Tom
+    60: "basedrum",  # Hi Bongo
+    61: "basedrum",  # Low Bongo
+    62: "basedrum",  # Mute Hi Conga
+    63: "basedrum",  # Open Hi Conga
+    64: "basedrum",  # Low Conga
+    65: "basedrum",  # High Timbale
+    66: "basedrum",  # Low Timbale
+    37: "snare",  # Side Stick
+    38: "snare",  # Acoustic Snare
+    39: "snare",  # Hand Clap
+    40: "snare",  # Electric Snare
+    54: "snare",  # Tambourine
+    58: "snare",  # Vibraslap
+    69: "snare",  # Cabasa
+    70: "snare",  # Maracas
+    73: "snare",  # Short Guiro
+    74: "snare",  # Long Guiro
+    75: "snare",  # Claves
+    76: "snare",  # Hi Wood Block
+    77: "snare",  # Low Wood Block
+    78: "snare",  # Mute Cuica
+    79: "snare",  # Open Cuica
+    42: "hat",  # Closed Hi-Hat
+    44: "hat",  # Pedal Hi-Hat
+    46: "hat",  # Open Hi-Hat
+    49: "hat",  # Crash Cymbal 1
+    51: "hat",  # Ride Cymbal 1
+    52: "hat",  # Chinese Cymbal
+    53: "hat",  # Ride Bell
+    55: "hat",  # Splash Cymbal
+    56: "hat",  # Cowbell
+    57: "hat",  # Crash Cymbal 2
+    59: "hat",  # Ride Cymbal 2
+    67: "hat",  # High Agogo
+    68: "hat",  # Low Agogo
+    71: "hat",  # Short Whistle
+    72: "hat",  # Long Whistle
+    80: "hat",  # Mute Triangle
+    81: "hat",  # Open Triangle
+}
+PERCUSSION_FALLBACK_INSTRUMENT = "snare"
 
 
 class MappedNote(BaseModel):
@@ -61,6 +118,11 @@ def map_pitch(
         instrument = _instrument_for(midi)
     clicks = midi - INSTRUMENTS[instrument].base_midi
     return MappedNote(instrument=instrument, clicks=clicks, octave_shift=octave_shift)
+
+
+def map_percussion(midi_pitch: int) -> MappedNote:
+    instrument = PERCUSSION_INSTRUMENT_MAP.get(midi_pitch, PERCUSSION_FALLBACK_INSTRUMENT)
+    return MappedNote(instrument=instrument, clicks=0, octave_shift=0)
 
 
 def build_octave_shift_warning(mapped: list[MappedNote]) -> Warning | None:

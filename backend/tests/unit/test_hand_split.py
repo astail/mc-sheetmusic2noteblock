@@ -9,7 +9,9 @@ from app.services.parser import parse_score
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
-def _event(midi: int, track: int = 0, staff: int | None = None) -> NoteEvent:
+def _event(
+    midi: int, track: int = 0, staff: int | None = None, channel: int | None = None
+) -> NoteEvent:
     return NoteEvent(
         offset_ql=0.0,
         duration_ql=1.0,
@@ -17,6 +19,7 @@ def _event(midi: int, track: int = 0, staff: int | None = None) -> NoteEvent:
         part_id=f"P{track}",
         staff_number=staff,
         track_index=track,
+        channel=channel,
     )
 
 
@@ -87,3 +90,32 @@ def test_override_beats_staff():
     events = [_event(60, staff=1), _event(48, staff=2)]
     hands = split_hands(events, hand_assignment={"track_0": "left"})
     assert hands == ["left", "left"]
+
+
+def test_channel_10_is_percussion():
+    events = [
+        _event(36, track=0, channel=10),
+        _event(60, track=1, staff=1),
+        _event(48, track=2, staff=2),
+    ]
+    hands = split_hands(events)
+    assert hands == ["percussion", "right", "left"]
+
+
+def test_percussion_track_does_not_count_toward_order_fallback():
+    # 打楽器を除いた残りが2本ではなく3本になるため、④ の順序割当は使われず
+    # ⑤ の C4 境界による音域分割にフォールバックする
+    events = [
+        _event(36, track=0, channel=10),
+        _event(72, track=1),  # C5 → 右手
+        _event(48, track=2),  # C3 → 左手
+        _event(36, track=3),  # C2 → 左手
+    ]
+    hands = split_hands(events)
+    assert hands == ["percussion", "right", "left", "left"]
+
+
+def test_percussion_ignore_override_still_applies():
+    events = [_event(36, track=0, channel=10)]
+    hands = split_hands(events, hand_assignment={"track_0": "ignore"})
+    assert hands == ["other"]

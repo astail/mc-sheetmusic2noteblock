@@ -19,7 +19,7 @@ from app.models.blueprint import (
 )
 from app.services.hand_split import Hand
 from app.services.instruments import INSTRUMENTS
-from app.services.pitch_mapper import map_pitch
+from app.services.pitch_mapper import map_percussion, map_pitch
 from app.services.quantizer import QuantizedEvent
 
 TICK_SECONDS = 0.1
@@ -69,9 +69,12 @@ def build_blueprint_parts(
     for q, hand in zip(quantized, hands):
         if hand == "other":
             continue
-        mapped = map_pitch(
-            q.event.midi_pitch, preset=preset, transpose_semitones=transpose_semitones
-        )
+        if hand == "percussion":
+            mapped = map_percussion(q.event.midi_pitch)
+        else:
+            mapped = map_pitch(
+                q.event.midi_pitch, preset=preset, transpose_semitones=transpose_semitones
+            )
         placement_key = (q.tick, mapped.instrument, mapped.clicks)
         if placement_key in seen_placements:
             merged_after_mapping += 1
@@ -79,7 +82,7 @@ def build_blueprint_parts(
             continue
         seen_placements.add(placement_key)
         inst = INSTRUMENTS[mapped.instrument]
-        effective_midi = inst.base_midi + mapped.clicks
+        effective_midi = None if inst.is_percussion else inst.base_midi + mapped.clicks
         source = None
         if q.event.measure is not None and q.event.beat is not None:
             source = NoteSource(
@@ -95,7 +98,7 @@ def build_blueprint_parts(
                 base_block=inst.base_block,
                 base_block_ja=inst.base_block_ja,
                 clicks=mapped.clicks,
-                note_name=note_name(effective_midi),
+                note_name=None if effective_midi is None else note_name(effective_midi),
                 midi=effective_midi,
                 hand=hand,
                 octave_shift=mapped.octave_shift,

@@ -1,11 +1,12 @@
-"""NoteEvent に hand("right" | "left" | "other")を付与する(docs/DESIGN.md §6)。
+"""NoteEvent に hand("right" | "left" | "percussion" | "other")を付与する(docs/DESIGN.md §6)。
 
 優先順のフォールバック:
   ⓪ ConversionSettings.hand_assignment("track_N" キー)による上書き("ignore" は "other")
-  ① MusicXML の staff(1=右手, 2=左手, 3以上=other)
-  ② トラック名ヒューリスティック("left" / "right" / "L.H." / "R.H." / 右手 / 左手 等)
-  ③ 未解決トラックがちょうど2本なら順序で割当(先=右手, 後=左手)
-  ④ それ以外(単一トラック等)は C4(MIDI 60)境界で音域分割
+  ① MIDI ch10(打楽器)は "percussion"
+  ② MusicXML の staff(1=右手, 2=左手, 3以上=other)
+  ③ トラック名ヒューリスティック("left" / "right" / "L.H." / "R.H." / 右手 / 左手 等)
+  ④ 未解決トラックがちょうど2本なら順序で割当(先=右手, 後=左手)
+  ⑤ それ以外(単一トラック等)は C4(MIDI 60)境界で音域分割
 """
 
 import re
@@ -13,7 +14,7 @@ from typing import Literal
 
 from app.models.events import NoteEvent
 
-Hand = Literal["right", "left", "other"]
+Hand = Literal["right", "left", "percussion", "other"]
 
 C4_MIDI = 60
 
@@ -56,12 +57,16 @@ def split_hands(
             if from_name is not None:
                 name_hand[track] = from_name
 
-    # ③ の対象: 上書き・トラック名・staff のどれでも解決しないトラック
+    # ④ の対象: 上書き・打楽器・トラック名・staff のどれでも解決しないトラック
+    percussion_tracks = {e.track_index for e in events if e.channel == 10}
     has_staff = {e.track_index for e in events if e.staff_number is not None}
     fallback_tracks = [
         t
         for t in track_indices
-        if t not in override_hand and t not in name_hand and t not in has_staff
+        if t not in override_hand
+        and t not in name_hand
+        and t not in has_staff
+        and t not in percussion_tracks
     ]
     order_hand: dict[int, Hand] = {}
     if len(fallback_tracks) == 2:
@@ -73,6 +78,8 @@ def split_hands(
         track = event.track_index
         if track in override_hand:
             hands.append(override_hand[track])
+        elif event.channel == 10:
+            hands.append("percussion")
         elif event.staff_number == 1:
             hands.append("right")
         elif event.staff_number == 2:
