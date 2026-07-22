@@ -3,13 +3,21 @@
 再利用条件:
 - 同一ステップ内の重複は blueprint_builder が既にマージ済みのため対象外
 - 配線距離: レッドストーンダストは中継(リピーター)無しでは15ブロックまでしか
-  信号が届かないため、ブロックの物理的な設置位置(layout.bus_offset_blocks)から
-  15ブロックを超える場所では新しいブロックを置き直す方が単純
+  信号が届かない。bus_offset_blocks の差はバス上(X方向)の距離のみで、実際の
+  ブロックはそこから ±Z 方向の分岐(branch)上に離れて置かれているため、
+  再利用の配線はバス方向の距離に加えて分岐方向の距離も消費する。layout は
+  ステップ単位の分岐方向(north/south)のみを持ち個々のブロックの分岐上の
+  深さまでは追跡していないため、正確な残り距離は計算できない。分岐の深さ
+  (大和音でも片側最大 BIG_CHORD_THRESHOLD 個程度を想定)とバスをまたぐ迂回分の
+  余裕として BRANCH_RESERVE_BLOCKS を差し引いた値をバス方向距離の上限とする
+  (非常に大きな和音では実際の配線距離がこの見積りを超える可能性が残る)
 """
 
 from app.models.blueprint import Layout, Step
 
-MAX_REUSE_DISTANCE_BLOCKS = 15
+DUST_MAX_RANGE_BLOCKS = 15
+BRANCH_RESERVE_BLOCKS = 5  # 分岐方向の深さ + バスをまたぐ迂回分の見積り
+MAX_REUSE_DISTANCE_BLOCKS = DUST_MAX_RANGE_BLOCKS - BRANCH_RESERVE_BLOCKS
 
 
 def assign_block_reuse(steps: list[Step], layout: Layout) -> list[Step]:
