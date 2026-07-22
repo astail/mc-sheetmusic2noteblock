@@ -1,19 +1,25 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+import io
 import json
 import os
 from pathlib import Path
 import time
+import zipfile
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 import wrapper.server as server
 from wrapper.server import (
+    IMAGE_UPSCALE_FACTOR,
     MAX_MULTIPART_OVERHEAD_BYTES,
     MAX_UPLOAD_BYTES,
+    MIN_IMAGE_DIMENSION_PX,
     MXL_MEDIA_TYPE,
+    _upscale_if_low_resolution,
     app,
 )
 
@@ -36,6 +42,42 @@ def post_png(client: TestClient, name: str = "score.png"):
         "/transcribe",
         files={"file": (name, b"\x89PNG\r\n\x1a\nscore", "image/png")},
     )
+
+
+def test_upscale_enlarges_low_resolution_image_as_lossless_png(tmp_path: Path) -> None:
+    source = tmp_path / "input.jpg"
+    Image.new("RGB", (300, 200), "white").save(source, format="JPEG")
+
+    result = _upscale_if_low_resolution(source, ".jpg")
+
+    assert result != source
+    assert result.suffix == ".png"
+    with Image.open(result) as image:
+        assert image.size == (300 * IMAGE_UPSCALE_FACTOR, 200 * IMAGE_UPSCALE_FACTOR)
+
+
+def test_upscale_leaves_already_high_resolution_image_untouched(tmp_path: Path) -> None:
+    source = tmp_path / "input.png"
+    size = MIN_IMAGE_DIMENSION_PX
+    Image.new("RGB", (size, size), "white").save(source, format="PNG")
+
+    result = _upscale_if_low_resolution(source, ".png")
+
+    assert result == source
+
+
+def test_upscale_skips_pdf_inputs(tmp_path: Path) -> None:
+    source = tmp_path / "input.pdf"
+    source.write_bytes(b"%PDF-1.7\nscore")
+
+    assert _upscale_if_low_resolution(source, ".pdf") == source
+
+
+def test_upscale_falls_back_to_original_on_unreadable_image(tmp_path: Path) -> None:
+    source = tmp_path / "input.png"
+    source.write_bytes(b"not a real png")
+
+    assert _upscale_if_low_resolution(source, ".png") == source
 
 
 def test_healthz() -> None:
@@ -179,7 +221,7 @@ def test_requires_exactly_one_file(fake_audiveris: Path, files, expected_code: s
     assert response.json()["error"]["code"] == expected_code
 
 
-@pytest.mark.parametrize("mode", ["fail", "missing", "invalid", "multiple"])
+@pytest.mark.parametrize("mode", ["fail", "missing", "invalid"])
 def test_returns_safe_fixed_error_for_bad_output(
     fake_audiveris: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -191,6 +233,28 @@ def test_returns_safe_fixed_error_for_bad_output(
     assert response.status_code == 502
     assert set(response.json()) == {"error"}
     assert "private fake failure details" not in response.text
+
+
+def test_returns_zip_bundle_when_audiveris_misdetects_multiple_pages(
+    fake_audiveris: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FAKE_AUDIVERIS_MODE", "multiple")
+    with TestClient(app) as client:
+        response = post_png(client)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == server.MXL_BUNDLE_MEDIA_TYPE
+    assert (
+        response.headers["content-disposition"]
+        == 'attachment; filename="transcription-bundle.zip"'
+    )
+
+    with zipfile.ZipFile(io.BytesIO(response.content)) as bundle:
+        names = sorted(bundle.namelist())
+        assert names == ["page_0.mxl", "page_1.mxl"]
+        for name in names:
+            assert bundle.read(name).startswith(b"PK")
 
 
 def test_timeout_kills_the_process_group(

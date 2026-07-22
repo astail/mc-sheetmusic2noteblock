@@ -38,10 +38,20 @@ class SuccessfulOmr:
     async def ensure_available(self) -> None:
         return None
 
-    async def transcribe(self, input_path: Path, source_filename: str) -> bytes:
+    async def transcribe(self, input_path: Path, source_filename: str) -> list[bytes]:
         assert input_path.read_bytes() == b"%PDF-test"
         assert source_filename == "scan.pdf"
-        return _mxl_fixture()
+        return [_mxl_fixture()]
+
+
+class TwoPageOmr:
+    """Audiverisが1つの入力を2ページと誤認識したケースを模したfake。"""
+
+    async def ensure_available(self) -> None:
+        return None
+
+    async def transcribe(self, input_path: Path, source_filename: str) -> list[bytes]:
+        return [_mxl_fixture(), _mxl_fixture()]
 
 
 @pytest.fixture(autouse=True)
@@ -90,6 +100,25 @@ def test_job_transcribes_and_registers_normal_score():
         assert {path.name for path in job_dir.iterdir()} == {"job.json"}
 
 
+def test_multi_page_omr_result_is_merged_with_a_warning():
+    app.dependency_overrides[omr.get_omr_client] = TwoPageOmr
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/omr/jobs",
+            files={"file": ("scan.pdf", b"%PDF-test", "application/pdf")},
+        ).json()
+
+        result = _poll_done(client, created["job_id"])
+        assert result["status"] == "done"
+        assert result["error"] is None
+        assert result["warning"] is not None
+        assert "2ページ" in result["warning"]
+
+        score = client.get(f"/api/scores/{result['score_id']}").json()
+        # 各ページ8音 x 2ページ分がすべて結合され欠落しない
+        assert score["summary"]["note_count"] == 16
+
+
 def test_profile_disabled_returns_clear_501_without_creating_job():
     class UnavailableOmr:
         async def ensure_available(self) -> None:
@@ -118,7 +147,7 @@ def test_jobs_are_queued_and_run_one_at_a_time():
         async def ensure_available(self) -> None:
             return None
 
-        async def transcribe(self, _path: Path, _filename: str) -> bytes:
+        async def transcribe(self, _path: Path, _filename: str) -> list[bytes]:
             nonlocal calls
             with calls_lock:
                 calls += 1
@@ -127,7 +156,7 @@ def test_jobs_are_queued_and_run_one_at_a_time():
                 entered.set()
                 while not release.is_set():
                     await __import__("asyncio").sleep(0.01)
-            return _mxl_fixture()
+            return [_mxl_fixture()]
 
     instance = BlockingOmr()
     app.dependency_overrides[omr.get_omr_client] = lambda: instance
@@ -155,7 +184,7 @@ def test_failed_transcription_has_fixed_public_error_and_cleans_input():
         async def ensure_available(self) -> None:
             return None
 
-        async def transcribe(self, _path: Path, _filename: str) -> bytes:
+        async def transcribe(self, _path: Path, _filename: str) -> list[bytes]:
             raise OmrTranscriptionError("private Audiveris stack trace")
 
     app.dependency_overrides[omr.get_omr_client] = FailedOmr

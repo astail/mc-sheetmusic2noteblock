@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, UploadFile, status
+from music21 import converter, stream
 
 from app import storage
 from app.models.omr import OmrJobCreated, OmrJobError, OmrJobRecord, OmrJobResponse
@@ -45,6 +47,7 @@ def _job_response(record: OmrJobRecord) -> OmrJobResponse:
         status=record.status,
         score_id=record.score_id,
         error=record.error,
+        warning=record.warning,
     )
 
 
@@ -71,7 +74,48 @@ async def _read_upload(file: UploadFile) -> bytes:
     return bytes(content)
 
 
-def _register_score(source_filename: str, mxl_content: bytes) -> str:
+def _merge_mxl_pages(mxl_contents: list[bytes]) -> bytes:
+    """Audiverisが誤って複数ページとして分割した認識結果を、時系列で連結した
+    1つのMusicXML(.mxl)にまとめる。各ページの全パートを、そのまま独立した
+    パートとして直前までのページの合計長だけオフセットして連結する
+    (ページ間でパートの対応関係(右手/左手等)を推定することはしない。
+    hand_split の自動判定・設定パネルでの手動上書きで後から調整できる)。
+    """
+    combined = stream.Score()
+    cumulative_offset = 0.0
+    with tempfile.TemporaryDirectory(prefix="omr-merge-") as tmp_dir:
+        tmp_root = Path(tmp_dir)
+        for index, content in enumerate(mxl_contents):
+            tmp_path = tmp_root / f"page_{index}.mxl"
+            tmp_path.write_bytes(content)
+            page = converter.parse(tmp_path)
+            page_parts = list(page.parts) if page.parts else [page]
+            for part in page_parts:
+                new_part = stream.Part()
+                for element in part.flatten().notesAndRests:
+                    new_part.insert(cumulative_offset + element.offset, element)
+                combined.insert(0, new_part)
+            cumulative_offset += float(page.highestTime)
+        out_path = tmp_root / "merged.mxl"
+        combined.write("musicxml", fp=out_path)
+        return out_path.read_bytes()
+
+
+MULTI_PAGE_WARNING_TEMPLATE = (
+    "認識結果が{page_count}ページに分かれていたため結合しました。"
+    "五線の対応(特に両手のパート分け)が誤っている可能性があるため、"
+    "設計書生成後に内容をご確認ください。必要であれば設定パネルの"
+    "トラック割当で右手/左手を手動修正してください。"
+)
+
+
+def _register_score(source_filename: str, mxl_contents: list[bytes]) -> tuple[str, str | None]:
+    warning = None
+    if len(mxl_contents) > 1:
+        mxl_content = _merge_mxl_pages(mxl_contents)
+        warning = MULTI_PAGE_WARNING_TEMPLATE.format(page_count=len(mxl_contents))
+    else:
+        mxl_content = mxl_contents[0]
     output_name = f"{Path(source_filename).stem or 'transcription'}.mxl"
     score_id = storage.create_score(output_name, mxl_content)
     try:
@@ -83,20 +127,22 @@ def _register_score(source_filename: str, mxl_content: bytes) -> str:
     except BaseException:
         shutil.rmtree(storage.score_dir(score_id), ignore_errors=True)
         raise
-    return score_id
+    return score_id, warning
 
 
-async def _register_score_shielded(source_filename: str, mxl_content: bytes) -> str:
+async def _register_score_shielded(
+    source_filename: str, mxl_contents: list[bytes]
+) -> tuple[str, str | None]:
     """_register_score をスレッドプールで実行する。呼び出し元がキャンセルされてもスレッド自体は
     完了まで走り続けるため、キャンセル時は完了を待ってから孤立スコアを後始末する。"""
     task = asyncio.ensure_future(
-        asyncio.to_thread(_register_score, source_filename, mxl_content)
+        asyncio.to_thread(_register_score, source_filename, mxl_contents)
     )
     try:
         return await asyncio.shield(task)
     except asyncio.CancelledError:
         try:
-            orphan_score_id = await task
+            orphan_score_id, _ = await task
         except Exception:
             pass
         else:
@@ -104,11 +150,13 @@ async def _register_score_shielded(source_filename: str, mxl_content: bytes) -> 
         raise
 
 
-async def _finalize_job_done(job_id: str, score_id: str) -> None:
+async def _finalize_job_done(job_id: str, score_id: str, warning: str | None) -> None:
     """ジョブを done として確定する。呼び出し元がキャンセルされてもこの更新自体は
     完了まで走らせ、確定済みの done を後から failed で上書きしないようにする。"""
     task = asyncio.ensure_future(
-        asyncio.to_thread(storage.update_omr_job, job_id, "done", score_id=score_id)
+        asyncio.to_thread(
+            storage.update_omr_job, job_id, "done", score_id=score_id, warning=warning
+        )
     )
     try:
         await asyncio.shield(task)
@@ -136,15 +184,15 @@ async def _run_job(job_id: str, client: OmrClient) -> None:
                 return
             await asyncio.to_thread(storage.update_omr_job, job_id, "running")
             input_path = storage.omr_job_input_path(job_id, record.source_filename)
-            mxl_content = await client.transcribe(input_path, record.source_filename)
-            score_id = await _register_score_shielded(
-                record.source_filename, mxl_content
+            mxl_contents = await client.transcribe(input_path, record.source_filename)
+            score_id, warning = await _register_score_shielded(
+                record.source_filename, mxl_contents
             )
             await asyncio.to_thread(
                 storage.update_omr_job, job_id, "running", score_id=score_id
             )
             try:
-                await _finalize_job_done(job_id, score_id)
+                await _finalize_job_done(job_id, score_id, warning)
             except BaseException:
                 shutil.rmtree(storage.score_dir(score_id), ignore_errors=True)
                 raise

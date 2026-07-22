@@ -206,12 +206,13 @@ def update_omr_job(
     *,
     score_id: str | None = None,
     error: OmrJobError | None = None,
+    warning: str | None = None,
 ) -> OmrJobRecord:
     record = load_omr_job(job_id)
     if record is None:
         raise OmrJobDataError("OMR job disappeared")
     updated = record.model_copy(
-        update={"status": status, "score_id": score_id, "error": error}
+        update={"status": status, "score_id": score_id, "error": error, "warning": warning}
     )
     save_omr_job(updated)
     return updated

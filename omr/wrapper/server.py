@@ -17,6 +17,7 @@ import zipfile
 
 from fastapi import FastAPI, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
+from PIL import Image
 from starlette.background import BackgroundTask
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser
@@ -28,6 +29,7 @@ MAX_MULTIPART_OVERHEAD_BYTES = 64 * 1024
 MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + MAX_MULTIPART_OVERHEAD_BYTES
 COPY_CHUNK_BYTES = 1024 * 1024
 MXL_MEDIA_TYPE = "application/vnd.recordare.musicxml+xml"
+MXL_BUNDLE_MEDIA_TYPE = "application/zip"
 ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
 MAGIC_BYTES = {
     ".pdf": (b"%PDF-",),
@@ -35,6 +37,12 @@ MAGIC_BYTES = {
     ".jpg": (b"\xff\xd8\xff",),
     ".jpeg": (b"\xff\xd8\xff",),
 }
+# Audiveris は五線の間隔(interline)が小さすぎる画像を「解像度不足」として
+# 認識せず捨てる(300 DPI 相当を推奨)。低解像度の画像(短辺がこの値未満)は
+# 事前に拡大しておく。倍率は実際の低解像度画像(短辺 817px)で認識に成功する
+# ことを確認した値。PDF は Audiveris 側で適切な解像度にラスタライズされるため対象外
+MIN_IMAGE_DIMENSION_PX = 1200
+IMAGE_UPSCALE_FACTOR = 4
 
 
 @dataclass(slots=True)
@@ -253,16 +261,33 @@ async def _store_upload(upload: UploadFile, destination: Path, extension: str) -
         raise ApiError(415, "UNSUPPORTED_FILE", "The uploaded file is not a supported PDF or image.")
 
 
-def _find_valid_mxl(output_dir: Path) -> Path:
-    candidates = [
-        path
-        for path in output_dir.rglob("*")
-        if path.suffix.lower() == ".mxl" and path.is_file() and not path.is_symlink()
-    ]
-    if len(candidates) != 1:
-        raise ApiError(502, "INVALID_TRANSCRIPTION_OUTPUT", "The transcription output is invalid.")
+def _upscale_if_low_resolution(input_path: Path, extension: str) -> Path:
+    """低解像度画像はAudiverisが認識できないため、事前に拡大しておく。
+    拡大後はPNG(可逆)として別ファイルに保存する。元の拡張子(JPEG等)のまま
+    上書き保存すると再圧縮でノイズが乗り、拡大の効果が薄れてしまうため。
+    拡大がこの最適化にすぎず必須ではないため、Pillowで処理できない画像は
+    そのままAudiverisに渡す(Audiveris自身の失敗として通常通り扱われる)。
+    戻り値はAudiverisへ実際に渡すパス(拡大しなかった場合は input_path のまま)。
+    """
+    if extension == ".pdf":
+        return input_path
+    try:
+        with Image.open(input_path) as image:
+            width, height = image.size
+            if min(width, height) >= MIN_IMAGE_DIMENSION_PX:
+                return input_path
+            scaled = image.resize(
+                (width * IMAGE_UPSCALE_FACTOR, height * IMAGE_UPSCALE_FACTOR), Image.LANCZOS
+            )
+        upscaled_path = input_path.with_name(input_path.name + ".upscaled.png")
+        scaled.save(upscaled_path, format="PNG")
+        return upscaled_path
+    except Exception:
+        LOGGER.warning("Skipping upscale for a file Pillow could not process", exc_info=True)
+        return input_path
 
-    mxl_path = candidates[0]
+
+def _validate_mxl(mxl_path: Path, output_dir: Path) -> None:
     try:
         mxl_path.resolve(strict=True).relative_to(output_dir.resolve(strict=True))
     except (OSError, ValueError) as exc:
@@ -293,7 +318,23 @@ def _find_valid_mxl(output_dir: Path) -> Path:
             "INVALID_TRANSCRIPTION_OUTPUT",
             "The transcription output is invalid.",
         ) from exc
-    return mxl_path
+
+
+def _find_valid_mxls(output_dir: Path) -> list[Path]:
+    """Audiverisは通常1ページにつき1つの.mxlを書き出すが、入力を複数ページ
+    (複数楽章等)と誤認識した場合は複数の.mxlに分かれることがある。
+    見つかった.mxlをすべて検証して返す(1つにまとめるかは呼び出し元が判断する)。
+    """
+    candidates = sorted(
+        path
+        for path in output_dir.rglob("*")
+        if path.suffix.lower() == ".mxl" and path.is_file() and not path.is_symlink()
+    )
+    if not candidates:
+        raise ApiError(502, "INVALID_TRANSCRIPTION_OUTPUT", "The transcription output is invalid.")
+    for mxl_path in candidates:
+        _validate_mxl(mxl_path, output_dir)
+    return candidates
 
 
 runner = AudiverisRunner()
@@ -341,12 +382,29 @@ async def transcribe(request: Request) -> FileResponse:
             output_dir = work_dir / "output"
             output_dir.mkdir()
             await _store_upload(upload, input_path, extension)
-            await runner.run(input_path, output_dir, work_dir / "audiveris.log")
-            mxl_path = _find_valid_mxl(output_dir)
+            transcribe_path = await asyncio.to_thread(
+                _upscale_if_low_resolution, input_path, extension
+            )
+            await runner.run(transcribe_path, output_dir, work_dir / "audiveris.log")
+            mxl_paths = _find_valid_mxls(output_dir)
+            if len(mxl_paths) == 1:
+                return FileResponse(
+                    mxl_paths[0],
+                    media_type=MXL_MEDIA_TYPE,
+                    filename="transcription.mxl",
+                    background=BackgroundTask(shutil.rmtree, work_dir, True),
+                )
+            # Audiverisが複数ページと誤認識した場合、すべての.mxlをZIPに束ねて返す。
+            # どう1つにまとめるか(ページの結合方法)はAudiverisの知識を持たない
+            # このラッパーではなく、呼び出し側(app)の判断に委ねる
+            bundle_path = work_dir / "transcription-bundle.zip"
+            with zipfile.ZipFile(bundle_path, "w", zipfile.ZIP_DEFLATED) as bundle:
+                for index, mxl_path in enumerate(mxl_paths):
+                    bundle.write(mxl_path, arcname=f"page_{index}.mxl")
             return FileResponse(
-                mxl_path,
-                media_type=MXL_MEDIA_TYPE,
-                filename="transcription.mxl",
+                bundle_path,
+                media_type=MXL_BUNDLE_MEDIA_TYPE,
+                filename="transcription-bundle.zip",
                 background=BackgroundTask(shutil.rmtree, work_dir, True),
             )
         except BaseException:

@@ -1,6 +1,8 @@
 """OMR HTTP client の接続失敗・応答境界を検証する。"""
 
 import asyncio
+import io
+import zipfile
 from pathlib import Path
 
 import httpx
@@ -86,7 +88,51 @@ def test_transcribe_posts_multipart_and_returns_mxl(tmp_path, monkeypatch):
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
             return await OmrClient(http).transcribe(source, "score.pdf")
 
-    assert _run(scenario()) == b"mxl-data"
+    assert _run(scenario()) == [b"mxl-data"]
+
+
+def test_transcribe_unpacks_multi_page_zip_bundle(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "OMR_SERVICE_URL", "http://omr.test")
+    source = tmp_path / "input.pdf"
+    source.write_bytes(b"%PDF-test")
+
+    bundle = io.BytesIO()
+    with zipfile.ZipFile(bundle, "w") as archive:
+        archive.writestr("page_0.mxl", b"page-0-data")
+        archive.writestr("page_1.mxl", b"page-1-data")
+
+    async def scenario():
+        async def handler(_: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                content=bundle.getvalue(),
+                headers={"content-type": omr_client.MXL_BUNDLE_MEDIA_TYPE},
+            )
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            return await OmrClient(http).transcribe(source, "score.pdf")
+
+    assert _run(scenario()) == [b"page-0-data", b"page-1-data"]
+
+
+def test_transcribe_rejects_invalid_zip_bundle(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "OMR_SERVICE_URL", "http://omr.test")
+    source = tmp_path / "input.pdf"
+    source.write_bytes(b"%PDF-test")
+
+    async def scenario():
+        async def handler(_: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                content=b"not a real zip",
+                headers={"content-type": omr_client.MXL_BUNDLE_MEDIA_TYPE},
+            )
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            with pytest.raises(OmrTranscriptionError):
+                await OmrClient(http).transcribe(source, "score.pdf")
+
+    _run(scenario())
 
 
 def test_transcribe_rejects_remote_failure_without_echoing_body(tmp_path, monkeypatch):

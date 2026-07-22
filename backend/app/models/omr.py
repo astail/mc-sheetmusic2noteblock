@@ -25,6 +25,9 @@ class OmrJobRecord(BaseModel):
     source_filename: str
     score_id: str | None = None
     error: OmrJobError | None = None
+    # done でも、Audiverisが複数ページとして誤認識し結合した場合など
+    # 認識結果の確認を促したい場合に設定する(致命的ではないため score_id と共存する)
+    warning: str | None = None
 
 
 class OmrJobResponse(BaseModel):
@@ -32,6 +35,7 @@ class OmrJobResponse(BaseModel):
     status: OmrJobStatus
     score_id: str | None = None
     error: OmrJobError | None = None
+    warning: str | None = None
 
 
 class OmrJobCreated(BaseModel):

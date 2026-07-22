@@ -45,10 +45,11 @@ export function initUpload() {
           recommendedTpq: score.recommended_tpq,
           blueprint: null, // 新しいスコアでは前の設計書を破棄
         });
+        const warningText = job.warning ? ` ${job.warning}` : "";
         showStatus(
           `「${fileName}」をOMRで読み取りました(音数 ${score.summary.note_count})。` +
-            "読み取り精度は楽譜の品質に依存するため、内容をご確認ください。",
-          "success",
+            `読み取り精度は楽譜の品質に依存するため、内容をご確認ください。${warningText}`,
+          job.warning ? "info" : "success",
         );
         // 次のステップ(変換設定)へ誘導
         document

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
@@ -11,6 +13,7 @@ import httpx
 from app import config
 
 MAX_MXL_BYTES = 50 * 1024 * 1024
+MXL_BUNDLE_MEDIA_TYPE = "application/zip"
 
 
 class OmrUnavailableError(Exception):
@@ -61,8 +64,11 @@ class OmrClient:
         if payload != {"status": "ok"}:
             raise OmrUnavailableError("OMR health check returned an unexpected payload")
 
-    async def transcribe(self, input_path: Path, source_filename: str) -> bytes:
-        """入力を multipart で送信し、サイズ制限内の MXL を返す。"""
+    async def transcribe(self, input_path: Path, source_filename: str) -> list[bytes]:
+        """入力を multipart で送信し、サイズ制限内の MXL を返す。
+        Audiverisが複数ページと誤認識した場合は、ZIPで束ねられた複数件が
+        返るため、その場合はすべて展開して返す(通常は要素数1のリスト)。
+        """
         try:
             with input_path.open("rb") as input_file:
                 async with self._client(config.OMR_REQUEST_TIMEOUT_SECONDS) as client:
@@ -81,6 +87,12 @@ class OmrClient:
                             raise OmrTranscriptionError(
                                 f"OMR returned HTTP {response.status_code}"
                             )
+                        content_type = (
+                            response.headers.get("content-type", "")
+                            .partition(";")[0]
+                            .strip()
+                            .lower()
+                        )
                         content = bytearray()
                         async for chunk in response.aiter_bytes():
                             content.extend(chunk)
@@ -93,4 +105,15 @@ class OmrClient:
 
         if not content:
             raise OmrTranscriptionError("OMR returned an empty response")
-        return bytes(content)
+
+        if content_type == MXL_BUNDLE_MEDIA_TYPE:
+            try:
+                with zipfile.ZipFile(io.BytesIO(bytes(content))) as archive:
+                    names = sorted(archive.namelist())
+                    if not names:
+                        raise OmrTranscriptionError("OMR returned an empty page bundle")
+                    return [archive.read(name) for name in names]
+            except zipfile.BadZipFile as exc:
+                raise OmrTranscriptionError("OMR returned an invalid page bundle") from exc
+
+        return [bytes(content)]
