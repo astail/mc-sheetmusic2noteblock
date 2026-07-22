@@ -19,7 +19,10 @@
       <h2>1. 楽譜アップロード</h2>
       <div id="dropzone" class="dropzone">
         <p>ここに楽譜ファイルをドロップ(.mid / .musicxml / .mxl)</p>
-        <p class="dropzone-note">PDF/画像は実験的機能(OMR)として Phase 4 で対応予定</p>
+        <p class="dropzone-note">
+          <span class="omr-badge">実験的機能</span>
+          PDF/画像は OMR(光学楽譜認識)で読み取ります。読み取り精度は楽譜の品質に依存します。
+        </p>
         <button type="button" id="file-select-button">ファイルを選択</button>
         <input type="file" id="file-input"
                accept=".mid,.musicxml,.mxl,.pdf,.png,.jpg,.jpeg" hidden>

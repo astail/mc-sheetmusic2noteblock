@@ -50,3 +50,15 @@ export function createBlueprint(scoreId, settings) {
 export function getBlueprint(scoreId) {
   return request(`/api/scores/${encodeURIComponent(scoreId)}/blueprint`);
 }
+
+// POST /api/omr/jobs (multipart) → {job_id, status: "queued"}
+export function createOmrJob(file) {
+  const form = new FormData();
+  form.append("file", file);
+  return request("/api/omr/jobs", { method: "POST", body: form });
+}
+
+// GET /api/omr/jobs/{id} → {job_id, status, score_id, error}
+export function getOmrJob(jobId) {
+  return request(`/api/omr/jobs/${encodeURIComponent(jobId)}`);
+}
