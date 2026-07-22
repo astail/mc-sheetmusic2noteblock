@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
@@ -20,6 +21,7 @@ services:
     build: ./omr
     platform: linux/amd64
     profiles: ["omr"]
+    restart: unless-stopped
     volumes:
       - ./data:/data
     environment:

@@ -16,3 +16,6 @@ __pycache__/
 node_modules/
 frontend/test-results/
 frontend/playwright-report/
+
+# local-only port override (this host's 8000 is used by another project)
+compose.local-port.yml
