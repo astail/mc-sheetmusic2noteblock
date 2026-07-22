@@ -14,12 +14,28 @@ MATERIAL_NOTES = [
 
 
 def count_materials(steps: list[Step]) -> Materials:
+    all_notes = [note for step in steps for note in step.notes]
+    # block_id が付与されている(services/block_reuse.py 適用後の)場合のみ、
+    # 同じ block_id の note は同一の物理ブロックとして1個にまとめる。
+    # block_id が無い(未適用)場合は従来通り1音=1ブロックとして数える
+    seen_block_ids: set[int] = set()
+    unique_notes = []
+    for note in all_notes:
+        if note.block_id is not None:
+            if note.block_id in seen_block_ids:
+                continue
+            seen_block_ids.add(note.block_id)
+        unique_notes.append(note)
+    reused_count = len(all_notes) - len(unique_notes)
+
+    notes = list(MATERIAL_NOTES)
+    if reused_count:
+        notes.append(f"{reused_count}箇所で既存の音符ブロックを再利用し、資材を{reused_count}個削減しました")
+
     return Materials(
-        note_block=sum(len(step.notes) for step in steps),
+        note_block=len(unique_notes),
         repeater=sum(step.repeaters.count for step in steps),
         redstone_dust_estimate=len(steps) * DUST_PER_STEP,
-        base_blocks=dict(
-            Counter(note.base_block for step in steps for note in step.notes)
-        ),
-        notes=list(MATERIAL_NOTES),
+        base_blocks=dict(Counter(note.base_block for note in unique_notes)),
+        notes=notes,
     )

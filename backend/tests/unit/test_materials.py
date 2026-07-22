@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from app.models.blueprint import QuantizationStats
+from app.models.blueprint import NotePlacement, QuantizationStats, Repeaters, Step
 from app.services.blueprint_builder import build_blueprint_parts
 from app.services.hand_split import split_hands
 from app.services.materials import count_materials
@@ -58,3 +58,52 @@ def test_empty_steps():
     assert materials.repeater == 0
     assert materials.redstone_dust_estimate == 0
     assert materials.base_blocks == {}
+
+
+def _note_with_block(block_id: int, instrument="harp", base_block="dirt") -> NotePlacement:
+    return NotePlacement(
+        instrument=instrument,
+        instrument_ja=instrument,
+        base_block=base_block,
+        base_block_ja=base_block,
+        clicks=6,
+        note_name="C4",
+        midi=60,
+        hand="right",
+        octave_shift=0,
+        block_id=block_id,
+    )
+
+
+def _step_with_notes(index: int, notes: list[NotePlacement]) -> Step:
+    return Step(
+        index=index,
+        tick=index,
+        time_seconds=index * 0.1,
+        delay_from_prev_rticks=0,
+        repeaters=Repeaters(chain=[], count=0),
+        notes=notes,
+    )
+
+
+def test_reused_blocks_are_counted_once():
+    # block_id=1 が2回、block_id=2 が1回 → 実際に必要なブロックは2個
+    steps = [
+        _step_with_notes(0, [_note_with_block(1)]),
+        _step_with_notes(1, [_note_with_block(1)]),
+        _step_with_notes(2, [_note_with_block(2, base_block="oak_planks")]),
+    ]
+    materials = count_materials(steps)
+    assert materials.note_block == 2
+    assert materials.base_blocks == {"dirt": 1, "oak_planks": 1}
+    assert any("再利用" in note and "1箇所" in note for note in materials.notes)
+
+
+def test_no_reuse_note_when_all_blocks_are_unique():
+    steps = [
+        _step_with_notes(0, [_note_with_block(1)]),
+        _step_with_notes(1, [_note_with_block(2)]),
+    ]
+    materials = count_materials(steps)
+    assert materials.note_block == 2
+    assert not any("再利用" in note for note in materials.notes)

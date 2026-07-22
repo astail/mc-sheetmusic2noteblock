@@ -35,12 +35,19 @@ export function describeDelay(step, index) {
   return `⏱ ${prefix} ${step.delay_from_prev_rticks} RT → リピーター${step.repeaters.count}個(${chainText})`;
 }
 
+// 配線距離内で同じ(音色, クリック数)が再登場した場合の追記。
+// 「ブロック#3を再利用(初出: ステップ5)」
+function describeReuse(note) {
+  if (note.reused_from_step == null) return "";
+  return ` (ブロック#${note.block_id}を再利用、初出: ステップ${note.reused_from_step})`;
+}
+
 // 「ハープ(下: 土)/ 6クリック = C4 / 右手」。打楽器は音程の概念がないため専用の表記にする
 export function describeNote(note) {
   if (note.hand === "percussion") {
-    return `${note.instrument_ja}(下: ${note.base_block_ja}) / 打楽器`;
+    return `${note.instrument_ja}(下: ${note.base_block_ja}) / 打楽器${describeReuse(note)}`;
   }
-  return `${note.instrument_ja}(下: ${note.base_block_ja}) / ${note.clicks}クリック = ${note.note_name} / ${HAND_LABELS[note.hand] ?? note.hand}`;
+  return `${note.instrument_ja}(下: ${note.base_block_ja}) / ${note.clicks}クリック = ${note.note_name} / ${HAND_LABELS[note.hand] ?? note.hand}${describeReuse(note)}`;
 }
 
 // 元の小節・拍の併記。source がなければ null
