@@ -66,11 +66,11 @@ docker compose --profile omr up --build
 
 | Method | Path | 内容 |
 |---|---|---|
-| POST | `/api/scores` | multipart アップロード。`.mid`/`.musicxml`/`.mxl` は即パースしサマリ返却。PDF/画像は OMR profile 無効なら 501 |
+| POST | `/api/scores` | multipart アップロード。`.mid`/`.musicxml`/`.mxl` のみ対応し即パースしてサマリ返却。PDF/画像は常に501(OMR profile の有効/無効に関わらず、PDF/画像は下記の `POST /api/omr/jobs` を使用すること) |
 | GET | `/api/scores/{score_id}` | パースサマリ(曲名、原曲 BPM、パート/譜表構成、音数、音域、推奨 tpq、トラック一覧) |
 | POST | `/api/scores/{score_id}/blueprint` | body = ConversionSettings。変換を実行し Blueprint JSON を返却・永続化 |
 | GET | `/api/scores/{score_id}/blueprint` | 最後に生成した設計書を取得 |
-| POST | `/api/omr/jobs` | PDF/画像 → 非同期 OMR ジョブを作成。202 + job_id |
+| POST | `/api/omr/jobs` | PDF/画像 → 非同期 OMR ジョブを作成(202 + job_id)。OMR profile 無効時は501 |
 | GET | `/api/omr/jobs/{job_id}` | ジョブ状態(`queued`/`running`/`done`/`failed`)。`done` 時は `score_id` を返す |
 | GET | `/healthz` | 死活監視 |
 
