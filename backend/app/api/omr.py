@@ -104,6 +104,18 @@ async def _register_score_shielded(source_filename: str, mxl_content: bytes) -> 
         raise
 
 
+async def _finalize_job_done(job_id: str, score_id: str) -> None:
+    """ジョブを done として確定する。呼び出し元がキャンセルされてもこの更新自体は
+    完了まで走らせ、確定済みの done を後から failed で上書きしないようにする。"""
+    task = asyncio.ensure_future(
+        asyncio.to_thread(storage.update_omr_job, job_id, "done", score_id=score_id)
+    )
+    try:
+        await asyncio.shield(task)
+    except asyncio.CancelledError:
+        await task
+
+
 async def _fail_job(job_id: str, error: OmrJobError) -> None:
     try:
         await asyncio.to_thread(storage.update_omr_job, job_id, "failed", error=error)
@@ -125,12 +137,7 @@ async def _run_job(job_id: str, client: OmrClient) -> None:
                 record.source_filename, mxl_content
             )
             try:
-                await asyncio.to_thread(
-                    storage.update_omr_job,
-                    job_id,
-                    "done",
-                    score_id=score_id,
-                )
+                await _finalize_job_done(job_id, score_id)
             except BaseException:
                 shutil.rmtree(storage.score_dir(score_id), ignore_errors=True)
                 raise

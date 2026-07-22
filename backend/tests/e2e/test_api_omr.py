@@ -221,6 +221,38 @@ def test_cancelled_registration_cleans_up_orphan_score(monkeypatch):
         assert not scores_root.exists() or list(scores_root.iterdir()) == []
 
 
+def test_cancelled_finalize_does_not_discard_a_completed_job(monkeypatch):
+    entered = threading.Event()
+    release = threading.Event()
+    original_update_omr_job = storage.update_omr_job
+
+    def slow_update_omr_job(job_id, status, **kwargs):
+        if status == "done":
+            entered.set()
+            release.wait(timeout=2)
+        return original_update_omr_job(job_id, status, **kwargs)
+
+    monkeypatch.setattr(storage, "update_omr_job", slow_update_omr_job)
+    app.dependency_overrides[omr.get_omr_client] = SuccessfulOmr
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/omr/jobs",
+            files={"file": ("scan.pdf", b"%PDF-test", "application/pdf")},
+        ).json()
+
+        assert entered.wait(timeout=2)
+        omr._tasks[created["job_id"]].cancel()
+        release.set()
+
+        result = _poll_done(client, created["job_id"])
+        assert result["status"] == "done"
+        assert result["error"] is None
+        score_id = result["score_id"]
+
+        score = client.get(f"/api/scores/{score_id}")
+        assert score.status_code == 200
+
+
 def test_invalid_upload_and_job_ids_are_rejected(monkeypatch):
     app.dependency_overrides[omr.get_omr_client] = SuccessfulOmr
     monkeypatch.setattr(omr, "MAX_UPLOAD_BYTES", 3)
