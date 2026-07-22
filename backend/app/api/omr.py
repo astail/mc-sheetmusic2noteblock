@@ -86,6 +86,24 @@ def _register_score(source_filename: str, mxl_content: bytes) -> str:
     return score_id
 
 
+async def _register_score_shielded(source_filename: str, mxl_content: bytes) -> str:
+    """_register_score をスレッドプールで実行する。呼び出し元がキャンセルされてもスレッド自体は
+    完了まで走り続けるため、キャンセル時は完了を待ってから孤立スコアを後始末する。"""
+    task = asyncio.ensure_future(
+        asyncio.to_thread(_register_score, source_filename, mxl_content)
+    )
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        try:
+            orphan_score_id = await task
+        except Exception:
+            pass
+        else:
+            shutil.rmtree(storage.score_dir(orphan_score_id), ignore_errors=True)
+        raise
+
+
 async def _fail_job(job_id: str, error: OmrJobError) -> None:
     try:
         await asyncio.to_thread(storage.update_omr_job, job_id, "failed", error=error)
@@ -103,8 +121,8 @@ async def _run_job(job_id: str, client: OmrClient) -> None:
             await asyncio.to_thread(storage.update_omr_job, job_id, "running")
             input_path = storage.omr_job_input_path(job_id, record.source_filename)
             mxl_content = await client.transcribe(input_path, record.source_filename)
-            score_id = await asyncio.to_thread(
-                _register_score, record.source_filename, mxl_content
+            score_id = await _register_score_shielded(
+                record.source_filename, mxl_content
             )
             try:
                 await asyncio.to_thread(

@@ -191,6 +191,36 @@ def test_interrupted_job_is_recovered_on_startup_and_input_is_cleaned():
     assert {p.name for p in storage.omr_job_dir(queued.job_id).iterdir()} == {"job.json"}
 
 
+def test_cancelled_registration_cleans_up_orphan_score(monkeypatch):
+    entered = threading.Event()
+    release = threading.Event()
+    original_register_score = omr._register_score
+
+    def slow_register_score(source_filename: str, mxl_content: bytes) -> str:
+        entered.set()
+        release.wait(timeout=2)
+        return original_register_score(source_filename, mxl_content)
+
+    monkeypatch.setattr(omr, "_register_score", slow_register_score)
+    app.dependency_overrides[omr.get_omr_client] = SuccessfulOmr
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/omr/jobs",
+            files={"file": ("scan.pdf", b"%PDF-test", "application/pdf")},
+        ).json()
+
+        assert entered.wait(timeout=2)
+        omr._tasks[created["job_id"]].cancel()
+        release.set()
+
+        result = _poll_done(client, created["job_id"])
+        assert result["status"] == "failed"
+        assert result["error"]["code"] == "OMR_INTERRUPTED"
+
+        scores_root = Path(config.DATA_DIR) / "scores"
+        assert not scores_root.exists() or list(scores_root.iterdir()) == []
+
+
 def test_invalid_upload_and_job_ids_are_rejected(monkeypatch):
     app.dependency_overrides[omr.get_omr_client] = SuccessfulOmr
     monkeypatch.setattr(omr, "MAX_UPLOAD_BYTES", 3)
