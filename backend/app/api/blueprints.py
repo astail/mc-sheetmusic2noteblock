@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from app import storage
 from app.models.blueprint import Blueprint
 from app.models.settings import ConversionSettings
+from app.services.block_reuse import assign_block_reuse, build_reuse_warning
 from app.services.blueprint_builder import build_blueprint_parts
 from app.services.hand_split import split_hands
 from app.services.layout import build_layout
@@ -67,12 +68,18 @@ def create_blueprint(score_id: str, settings: ConversionSettings) -> Blueprint:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    layout = build_layout(steps)
+    steps = assign_block_reuse(steps, layout)
+    warnings = result.warnings + build_warnings
+    reuse_warning = build_reuse_warning(steps)
+    if reuse_warning is not None:
+        warnings = warnings + [reuse_warning]
     blueprint = Blueprint(
         meta=meta,
         steps=steps,
         materials=count_materials(steps),
-        warnings=result.warnings + build_warnings,
-        layout=build_layout(steps),
+        warnings=warnings,
+        layout=layout,
     )
     storage.save_blueprint(score_id, blueprint)
     return blueprint

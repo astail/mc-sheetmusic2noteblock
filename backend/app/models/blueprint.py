@@ -52,6 +52,10 @@ class NotePlacement(BaseModel):
     hand: Literal["right", "left", "percussion"]
     octave_shift: int
     source: NoteSource | None = None
+    # 資材を共有する物理ブロックの通し番号(1始まり)。services/block_reuse.py が
+    # layout 決定後に付与するため、それ以前(build_blueprint_parts 単体)では None
+    block_id: int | None = None
+    reused_from_step: int | None = None  # 再利用の場合、そのブロックが最初に置かれたステップ
 
 
 class Step(BaseModel):

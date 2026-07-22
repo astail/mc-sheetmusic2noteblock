@@ -200,3 +200,25 @@ def test_hand_assignment_override_applies():
     notes = [n for s in res.json()["steps"] for n in s["notes"]]
     assert all(n["hand"] == "left" for n in notes)
     assert len(notes) == 12  # track_0(メロディ14音)は ignore で除外
+
+
+def test_repeated_notes_reuse_the_same_block():
+    # twinkle.mid の冒頭「ドド」(同音連打)は近接する2ステップで同じ(harp,6クリック)
+    # になるため、配線距離内でブロックが再利用される
+    score_id = _upload("twinkle.mid")
+    res = client.post(f"/api/scores/{score_id}/blueprint", json={"ticks_per_quarter": 4})
+    assert res.status_code == 200
+    bp = res.json()
+    notes = [n for s in bp["steps"] for n in s["notes"]]
+    assert len(notes) == 26
+    assert bp["materials"]["note_block"] < 26
+    reused = [n for n in notes if n["reused_from_step"] is not None]
+    assert len(reused) > 0
+    for n in reused:
+        assert n["block_id"] is not None
+    assert any("再利用" in note for note in bp["materials"]["notes"])
+    reuse_warning = next(w for w in bp["warnings"] if w["type"] == "block_reuse")
+    assert "本線バス" in reuse_warning["message"]
+    assert len(reuse_warning["steps"]) > 0
+    # 再利用のたびに迂回配線ぶんのダストが通常のステップ数×2の見積りに上乗せされる
+    assert bp["materials"]["redstone_dust_estimate"] > len(bp["steps"]) * 2
