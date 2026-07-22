@@ -220,3 +220,5 @@ def test_repeated_notes_reuse_the_same_block():
     reuse_warning = next(w for w in bp["warnings"] if w["type"] == "block_reuse")
     assert "本線バス" in reuse_warning["message"]
     assert len(reuse_warning["steps"]) > 0
+    # 再利用のたびに迂回配線ぶんのダストが通常のステップ数×2の見積りに上乗せされる
+    assert bp["materials"]["redstone_dust_estimate"] > len(bp["steps"]) * 2

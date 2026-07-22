@@ -5,7 +5,7 @@ from pathlib import Path
 from app.models.blueprint import NotePlacement, QuantizationStats, Repeaters, Step
 from app.services.blueprint_builder import build_blueprint_parts
 from app.services.hand_split import split_hands
-from app.services.materials import count_materials
+from app.services.materials import REUSE_DUST_RESERVE_BLOCKS, count_materials
 from app.services.parser import parse_score
 from app.services.quantizer import quantize_beats
 
@@ -97,6 +97,8 @@ def test_reused_blocks_are_counted_once():
     assert materials.note_block == 2
     assert materials.base_blocks == {"dirt": 1, "oak_planks": 1}
     assert any("再利用" in note and "1箇所" in note for note in materials.notes)
+    # 再利用1箇所ぶんの迂回配線ダストが上乗せされる
+    assert materials.redstone_dust_estimate == 3 * 2 + REUSE_DUST_RESERVE_BLOCKS
 
 
 def test_no_reuse_note_when_all_blocks_are_unique():
