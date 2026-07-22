@@ -10,6 +10,8 @@ services:
     environment:
       - DATA_DIR=/data
       - OMR_SERVICE_URL=http://omr:8080
+      - OMR_HEALTHCHECK_TIMEOUT_SECONDS=${OMR_HEALTHCHECK_TIMEOUT_SECONDS:-2}
+      - OMR_REQUEST_TIMEOUT_SECONDS=${OMR_REQUEST_TIMEOUT_SECONDS:-330}
       - REPEATER_WARNING_THRESHOLD=${REPEATER_WARNING_THRESHOLD:-300}
 
   # Audiveris は公式 Linux 配布物が amd64 のみ。ARM ホストでは Docker の

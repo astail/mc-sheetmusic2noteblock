@@ -5,6 +5,10 @@ from pathlib import Path
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "./data"))
 OMR_SERVICE_URL = os.environ.get("OMR_SERVICE_URL", "http://omr:8080")
+OMR_HEALTHCHECK_TIMEOUT_SECONDS = float(
+    os.environ.get("OMR_HEALTHCHECK_TIMEOUT_SECONDS", "2")
+)
+OMR_REQUEST_TIMEOUT_SECONDS = float(os.environ.get("OMR_REQUEST_TIMEOUT_SECONDS", "330"))
 REPEATER_WARNING_THRESHOLD = int(os.environ.get("REPEATER_WARNING_THRESHOLD", "300"))
 
 

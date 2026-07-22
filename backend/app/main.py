@@ -3,17 +3,17 @@
 from fastapi import APIRouter, FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.api import blueprints, scores
+from app.api import blueprints, omr, scores
 from app.config import FRONTEND_DIR
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(scores.router)
 api_router.include_router(blueprints.router)
-# omr のルータは後続 issue でここに登録する
+api_router.include_router(omr.router)
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="mc-sheetmusic2noteblock")
+    app = FastAPI(title="mc-sheetmusic2noteblock", lifespan=omr.lifespan)
     app.include_router(api_router)
 
     @app.get("/healthz")
