@@ -6,13 +6,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 class CustomRange(BaseModel):
-    """instrument_preset="custom" 用の音色レンジ1件。base_midi は instruments.py の
-    base_midi と同じ意味(0クリックのMIDI番号。base_midi+24 が24クリック)。"""
+    """instrument_preset="custom" 用の音色レンジ1件。range_start_midi はこの音色を
+    使い始める元曲側のMIDI番号(境界)。音色自体の物理的な基準音(clicks=0の実際の
+    音高)は instruments.py の base_midi で固定されており、range_start_midi では
+    変更できない(pitch_mapper.map_custom がその音色自身のレンジへ改めて収める)。"""
 
     model_config = ConfigDict(extra="forbid")
 
     instrument: str
-    base_midi: int
+    range_start_midi: int
 
 
 class ConversionSettings(BaseModel):

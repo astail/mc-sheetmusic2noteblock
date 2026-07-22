@@ -144,23 +144,34 @@ def test_percussion_unknown_key_falls_back_to_snare():
     assert map_percussion(1).instrument == "snare"
 
 
-def test_custom_direct_hit_uses_each_ranges_own_base_midi():
-    ranges = [CustomRange(instrument="bass", base_midi=30), CustomRange(instrument="bell", base_midi=78)]
-    low = map_custom(30, ranges)
-    assert (low.instrument, low.clicks, low.octave_shift) == ("bass", 0, 0)
-    high = map_custom(78, ranges)
-    assert (high.instrument, high.clicks, high.octave_shift) == ("bell", 0, 0)
-
-
-def test_custom_shifts_to_nearest_range_when_no_direct_hit():
-    # bass: 30-54 / bell: 90-114。60 は bass 側(-1オクターブで48)の方が近い
-    ranges = [CustomRange(instrument="bass", base_midi=30), CustomRange(instrument="bell", base_midi=90)]
+def test_custom_shifts_into_the_chosen_instruments_own_physical_range():
+    # bell の物理的な基準音(clicks=0)は常に78(instruments.py)。range_start_midi=60 は
+    # 「音色を切り替える境界」でしかなく、実際の音高はソフトウェアで変更できないため、
+    # 選ばれた後は bell 自身のレンジ(78-102)へ改めてシフトする(78未満なので+2オクターブ)
+    ranges = [CustomRange(instrument="bell", range_start_midi=60)]
     mapped = map_custom(60, ranges)
-    assert (mapped.instrument, mapped.clicks, mapped.octave_shift) == ("bass", 18, -1)
+    assert (mapped.instrument, mapped.clicks, mapped.octave_shift) == ("bell", 6, 2)
+
+
+def test_custom_routes_by_boundary_and_covers_notes_below_the_first_boundary():
+    ranges = [
+        CustomRange(instrument="bass", range_start_midi=30),
+        CustomRange(instrument="bell", range_start_midi=90),
+    ]
+    # 30〜89 は bass、90以上は bell。最初の境界(30)未満の音も先頭(bass)に収める
+    below_first = map_custom(20, ranges)
+    assert (below_first.instrument, below_first.octave_shift) == ("bass", 1)  # 20+12=32
+    assert below_first.clicks == 2  # 32-30
+
+    between = map_custom(60, ranges)  # bass の物理レンジ(30-54)外なので-1オクターブ
+    assert (between.instrument, between.clicks, between.octave_shift) == ("bass", 18, -1)
+
+    at_bell = map_custom(90, ranges)  # bell 自身のレンジ(78-102)内なのでシフト無し
+    assert (at_bell.instrument, at_bell.clicks, at_bell.octave_shift) == ("bell", 12, 0)
 
 
 def test_custom_transpose_applied_before_mapping():
-    ranges = [CustomRange(instrument="harp", base_midi=54)]
+    ranges = [CustomRange(instrument="harp", range_start_midi=54)]
     mapped = map_custom(59, ranges, transpose_semitones=1)  # 59+1=60
     assert (mapped.instrument, mapped.clicks) == ("harp", 6)
 
@@ -173,17 +184,20 @@ def test_validate_custom_ranges_rejects_empty():
 
 
 def test_validate_custom_ranges_rejects_duplicate_instrument():
-    ranges = [CustomRange(instrument="harp", base_midi=54), CustomRange(instrument="harp", base_midi=30)]
+    ranges = [
+        CustomRange(instrument="harp", range_start_midi=54),
+        CustomRange(instrument="harp", range_start_midi=30),
+    ]
     with pytest.raises(ValueError):
         validate_custom_ranges(ranges)
 
 
 def test_validate_custom_ranges_rejects_percussion_and_unknown_instrument():
     with pytest.raises(ValueError):
-        validate_custom_ranges([CustomRange(instrument="basedrum", base_midi=30)])
+        validate_custom_ranges([CustomRange(instrument="basedrum", range_start_midi=30)])
     with pytest.raises(ValueError):
-        validate_custom_ranges([CustomRange(instrument="not_a_real_instrument", base_midi=30)])
+        validate_custom_ranges([CustomRange(instrument="not_a_real_instrument", range_start_midi=30)])
 
 
 def test_validate_custom_ranges_accepts_valid_list():
-    validate_custom_ranges([CustomRange(instrument="harp", base_midi=54)])
+    validate_custom_ranges([CustomRange(instrument="harp", range_start_midi=54)])

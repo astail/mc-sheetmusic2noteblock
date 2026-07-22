@@ -221,7 +221,7 @@ body {
   color: var(--color-muted);
 }
 
-.custom-ranges-editor .custom-range-base-midi {
+.custom-ranges-editor .custom-range-start-midi {
   width: 5em;
 }
 

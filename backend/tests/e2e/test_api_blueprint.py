@@ -89,15 +89,15 @@ def test_custom_preset_with_ranges_maps_notes_to_chosen_instrument():
         f"/api/scores/{score_id}/blueprint",
         json={
             "instrument_preset": "custom",
-            "custom_ranges": [{"instrument": "bell", "base_midi": 60}],
+            "custom_ranges": [{"instrument": "harp", "range_start_midi": 54}],
         },
     )
     assert res.status_code == 200
     bp = res.json()
     notes = [n for s in bp["steps"] for n in s["notes"]]
-    assert all(n["instrument"] == "bell" for n in notes)
-    assert notes[0]["clicks"] == 0  # C4 = base_midi
-    assert notes[-1]["clicks"] == 12  # C5 = base_midi + 12
+    assert all(n["instrument"] == "harp" for n in notes)
+    assert notes[0]["clicks"] == 6  # C4(60) - harp の基準音(54)
+    assert notes[-1]["clicks"] == 18  # C5(72) - harp の基準音(54)
 
 
 def test_measure_range_converts_only_selected_musicxml_measure():

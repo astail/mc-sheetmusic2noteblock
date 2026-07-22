@@ -149,7 +149,7 @@ function renderPanel(body, state) {
         <td>${inst.ja}</td>
         <td>${inst.blockJa}</td>
         <td>
-          <input type="number" class="custom-range-base-midi" data-instrument="${inst.name}"
+          <input type="number" class="custom-range-start-midi" data-instrument="${inst.name}"
                  value="${inst.baseMidi}" min="0" max="127" step="1" disabled>
         </td>
       </tr>`,
@@ -190,10 +190,11 @@ function renderPanel(body, state) {
     </div>
     <div id="custom-ranges-editor" class="custom-ranges-editor" hidden>
       <p class="custom-ranges-note">
-        custom を選んだ場合、使用する音色にチェックを入れ、基準音(0クリック時のMIDI番号)を指定してください。
+        custom を選んだ場合、使用する音色にチェックを入れ、その音色に切り替える最低音(元曲側のMIDI番号)を指定してください。
+        音色ごとの実際の音高(0クリックの音)は変更できないため、指定した音の付近になるよう自動でオクターブ調整されます。
       </p>
       <table class="custom-ranges-table">
-        <thead><tr><th></th><th>音色</th><th>下に置くブロック</th><th>基準音(0クリック)</th></tr></thead>
+        <thead><tr><th></th><th>音色</th><th>下に置くブロック</th><th>切り替え開始音(MIDI番号)</th></tr></thead>
         <tbody>${customRangeRows}</tbody>
       </table>
     </div>
@@ -218,10 +219,10 @@ function renderPanel(body, state) {
 
   for (const checkbox of body.querySelectorAll(".custom-range-enable")) {
     checkbox.addEventListener("change", () => {
-      const baseMidiInput = body.querySelector(
-        `.custom-range-base-midi[data-instrument="${checkbox.dataset.instrument}"]`,
+      const rangeStartInput = body.querySelector(
+        `.custom-range-start-midi[data-instrument="${checkbox.dataset.instrument}"]`,
       );
-      baseMidiInput.disabled = !checkbox.checked;
+      rangeStartInput.disabled = !checkbox.checked;
     });
   }
 
@@ -243,12 +244,12 @@ function renderPanel(body, state) {
     const customRanges = [];
     for (const checkbox of body.querySelectorAll(".custom-range-enable")) {
       if (!checkbox.checked) continue;
-      const baseMidiInput = body.querySelector(
-        `.custom-range-base-midi[data-instrument="${checkbox.dataset.instrument}"]`,
+      const rangeStartInput = body.querySelector(
+        `.custom-range-start-midi[data-instrument="${checkbox.dataset.instrument}"]`,
       );
       customRanges.push({
         instrument: checkbox.dataset.instrument,
-        base_midi: baseMidiInput.valueAsNumber,
+        range_start_midi: rangeStartInput.valueAsNumber,
       });
     }
     const customRangesError = validateCustomRanges(preset, customRanges);

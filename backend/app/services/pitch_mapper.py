@@ -6,8 +6,9 @@
 プリセット harp_only(素材節約):
   全音を harp の2オクターブ(MIDI 54〜78)にオクターブ折込する。
 プリセット custom(ConversionSettings.custom_ranges):
-  ユーザーが選んだ音色ごとに base_midi(0クリックのMIDI番号)を割り当てる。
-  該当レンジが無い音はオクターブシフトして最も近いレンジに収める。
+  ユーザーが選んだ音色ごとに range_start_midi(その音色を使い始める元曲側のMIDI番号)
+  で境界を決める。各音色自体の物理的な基準音(clicks=0の実際の音高)は変えられない
+  ため、境界で音色を選んだ後、その音色自身の物理レンジへオクターブシフトする。
 
 打楽器(GM percussion map の実キー番号 → basedrum/snare/hat の3音色):
   クリック数は音程ではなく打楽器の音色そのものを鳴らすためのものなので、
@@ -141,23 +142,25 @@ def map_custom(
     custom_ranges: list[CustomRange],
     transpose_semitones: int = 0,
 ) -> MappedNote:
+    """range_start_midi はどの音色を使うかを決める境界(元曲側のMIDI番号)であり、
+    音色自体の物理的な基準音(clicks=0の実際の音高)はinstruments.pyのbase_midiで
+    固定されている(音符ブロックの物理仕様上、ソフトウェアでは変更できない)。
+    このため境界で音色を選んだ後、その音色自身の物理レンジへ改めてオクターブシフトする。
+    """
     midi = midi_pitch + transpose_semitones
-    ranges = sorted(custom_ranges, key=lambda r: r.base_midi)
+    ranges = sorted(custom_ranges, key=lambda r: r.range_start_midi)
+    chosen = ranges[0]
     for r in ranges:
-        if r.base_midi <= midi <= r.base_midi + 24:
-            return MappedNote(instrument=r.instrument, clicks=midi - r.base_midi, octave_shift=0)
-    # どのレンジにも収まらない音は、最もシフト量が小さいレンジへオクターブシフトする
-    best_range, best_midi, best_shift = min(
-        (
-            (r, *_shift_into_range(midi, r.base_midi, r.base_midi + 24))
-            for r in ranges
-        ),
-        key=lambda candidate: abs(candidate[2]),
-    )
+        if r.range_start_midi <= midi:
+            chosen = r
+        else:
+            break
+    inst = INSTRUMENTS[chosen.instrument]
+    shifted, octave_shift = _shift_into_range(midi, inst.base_midi, inst.base_midi + 24)
     return MappedNote(
-        instrument=best_range.instrument,
-        clicks=best_midi - best_range.base_midi,
-        octave_shift=best_shift,
+        instrument=chosen.instrument,
+        clicks=shifted - inst.base_midi,
+        octave_shift=octave_shift,
     )
 
 
