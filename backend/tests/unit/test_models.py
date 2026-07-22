@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from app.models.blueprint import Blueprint, NotePlacement, Repeaters, Step
 from app.models.events import NoteEvent
-from app.models.settings import ConversionSettings
+from app.models.settings import ConversionSettings, CustomRange
 
 # DESIGN.md §7 ConversionSettings の例(コメント除去)
 CONVERSION_SETTINGS_EXAMPLE = {
@@ -152,6 +152,14 @@ def test_repeater_chain_must_be_1_to_4():
     for bad_chain in ([0], [5], [4, 0]):
         with pytest.raises(ValidationError):
             Repeaters(chain=bad_chain, count=len(bad_chain))
+
+
+def test_custom_range_start_midi_must_be_valid_midi():
+    for bad_value in (-1, 128):
+        with pytest.raises(ValidationError):
+            CustomRange(instrument="harp", range_start_midi=bad_value)
+    CustomRange(instrument="harp", range_start_midi=0)
+    CustomRange(instrument="harp", range_start_midi=127)
 
 
 def test_measure_range_must_be_positive_and_ordered():

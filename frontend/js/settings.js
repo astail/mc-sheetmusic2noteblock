@@ -81,6 +81,13 @@ export function validateCustomRanges(preset, customRanges) {
   if (!customRanges || customRanges.length === 0) {
     return "custom を選ぶ場合は音色を1つ以上選択してください";
   }
+  if (
+    customRanges.some(
+      (r) => !Number.isInteger(r.range_start_midi) || r.range_start_midi < 0 || r.range_start_midi > 127,
+    )
+  ) {
+    return "切り替え開始音は0〜127の範囲で指定してください";
+  }
   const starts = customRanges.map((r) => r.range_start_midi);
   if (new Set(starts).size !== starts.length) {
     return "同じ切り替え開始音(MIDI番号)を複数の音色に指定することはできません。値をずらしてください";

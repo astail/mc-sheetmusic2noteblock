@@ -14,7 +14,7 @@ class CustomRange(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     instrument: str
-    range_start_midi: int
+    range_start_midi: int = Field(ge=0, le=127)
 
 
 class ConversionSettings(BaseModel):
