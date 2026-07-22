@@ -13,6 +13,9 @@
   --hand-right-bg: #e3edf8;
   --hand-left: #c8701d;
   --hand-left-bg: #f9ecdd;
+  /* 打楽器(手の割当が無いため右手/左手と別系統の配色にする) */
+  --percussion: #7b4397;
+  --percussion-bg: #efe6f5;
 }
 
 * {
@@ -358,9 +361,18 @@ body {
   color: var(--hand-left);
 }
 
+.step-note--percussion {
+  background: var(--percussion-bg);
+  color: var(--percussion);
+}
+
 .step-note-dots {
   font-family: monospace;
   letter-spacing: 1px;
+}
+
+.step-note-icon {
+  font-size: 1.1rem;
 }
 
 .step-note-source {

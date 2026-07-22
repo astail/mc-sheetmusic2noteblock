@@ -43,8 +43,8 @@
     page-break-inside: avoid;
   }
 
-  /* 右手/左手は色だけに頼らず、枠線の線種でも判別できるようにする
-     (describeNote() のテキストに「右手」「左手」が含まれることに加えて) */
+  /* 右手/左手/打楽器は色だけに頼らず、枠線の線種でも判別できるようにする
+     (describeNote() のテキストに「右手」「左手」「打楽器」が含まれることに加えて) */
   .step-note--right {
     background: none;
     color: #000;
@@ -55,5 +55,11 @@
     background: none;
     color: #000;
     border-left: 4px dashed #000;
+  }
+
+  .step-note--percussion {
+    background: none;
+    color: #000;
+    border-left: 4px dotted #000;
   }
 }

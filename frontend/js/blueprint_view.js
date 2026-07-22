@@ -11,7 +11,7 @@ const WARNING_LABELS = {
   repeater_limit: "曲の分割提案",
 };
 
-const HAND_LABELS = { right: "右手", left: "左手" };
+const HAND_LABELS = { right: "右手", left: "左手", percussion: "打楽器" };
 
 export function formatDuration(seconds) {
   const total = Math.round(seconds);
@@ -35,8 +35,11 @@ export function describeDelay(step, index) {
   return `⏱ ${prefix} ${step.delay_from_prev_rticks} RT → リピーター${step.repeaters.count}個(${chainText})`;
 }
 
-// 「ハープ(下: 土)/ 6クリック = C4 / 右手」
+// 「ハープ(下: 土)/ 6クリック = C4 / 右手」。打楽器は音程の概念がないため専用の表記にする
 export function describeNote(note) {
+  if (note.hand === "percussion") {
+    return `${note.instrument_ja}(下: ${note.base_block_ja}) / 打楽器`;
+  }
   return `${note.instrument_ja}(下: ${note.base_block_ja}) / ${note.clicks}クリック = ${note.note_name} / ${HAND_LABELS[note.hand] ?? note.hand}`;
 }
 
@@ -130,10 +133,14 @@ function renderStepCard(step) {
   const notesHtml = step.notes
     .map((note) => {
       const source = describeSource(note.source);
+      const marker =
+        note.hand === "percussion"
+          ? `<span class="step-note-icon" title="打楽器">🥁</span>`
+          : `<span class="step-note-dots" title="${note.clicks}/24 クリック">${clicksDots(note.clicks)}</span>`;
       return `
         <li class="step-note step-note--${escapeHtml(note.hand)}">
           <span class="step-note-text">${escapeHtml(describeNote(note))}</span>
-          <span class="step-note-dots" title="${note.clicks}/24 クリック">${clicksDots(note.clicks)}</span>
+          ${marker}
           ${source ? `<span class="step-note-source">${escapeHtml(source)}</span>` : ""}
         </li>`;
     })

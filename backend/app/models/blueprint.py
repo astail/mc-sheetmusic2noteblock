@@ -47,9 +47,9 @@ class NotePlacement(BaseModel):
     base_block: str
     base_block_ja: str
     clicks: int = Field(ge=0, le=24)
-    note_name: str
-    midi: int
-    hand: Literal["right", "left"]
+    note_name: str | None = None  # 打楽器には音程の概念がないため None
+    midi: int | None = None  # 打楽器には音程の概念がないため None
+    hand: Literal["right", "left", "percussion"]
     octave_shift: int
     source: NoteSource | None = None
 

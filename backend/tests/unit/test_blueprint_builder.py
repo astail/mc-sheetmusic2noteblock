@@ -17,7 +17,7 @@ from app.services.quantizer import QuantizedEvent, quantize_beats
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
-def _qe(tick: int, midi: int = 60) -> QuantizedEvent:
+def _qe(tick: int, midi: int = 60, channel: int | None = None) -> QuantizedEvent:
     return QuantizedEvent(
         event=NoteEvent(
             offset_ql=tick / 4,
@@ -25,6 +25,7 @@ def _qe(tick: int, midi: int = 60) -> QuantizedEvent:
             midi_pitch=midi,
             part_id="P1",
             track_index=0,
+            channel=channel,
         ),
         tick=tick,
     )
@@ -148,6 +149,25 @@ def test_mapped_note_collision_deduped():
 def test_note_name():
     assert note_name(60) == "C4"
     assert note_name(54) == "F#3"
+
+
+def test_percussion_note_has_no_pitch_and_fixed_clicks():
+    quantized = [_qe(0, midi=36, channel=10)]  # bass drum
+    _, steps, _ = _build(quantized, ["percussion"])
+    placed = steps[0].notes[0]
+    assert placed.instrument == "basedrum"
+    assert placed.clicks == 0
+    assert placed.midi is None
+    assert placed.note_name is None
+    assert placed.hand == "percussion"
+
+
+def test_percussion_and_melodic_notes_coexist_in_same_step():
+    quantized = [_qe(0, midi=60), _qe(0, midi=38, channel=10)]  # harp + snare
+    _, steps, _ = _build(quantized, ["right", "percussion"])
+    assert len(steps) == 1
+    instruments = {n.instrument for n in steps[0].notes}
+    assert instruments == {"harp", "snare"}
     assert note_name(21) == "A0"
     assert note_name(108) == "C8"
 
