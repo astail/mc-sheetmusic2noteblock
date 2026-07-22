@@ -102,6 +102,17 @@ body {
   font-size: 0.85rem;
 }
 
+.omr-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--hand-left-bg);
+  color: var(--hand-left);
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
 .dropzone button {
   padding: 8px 16px;
   border: 1px solid var(--color-border);
