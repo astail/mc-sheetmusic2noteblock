@@ -12,6 +12,7 @@ from app.models.blueprint import (
     Meta,
     QuantizationStats,
 )
+from app.models.omr import OmrJobError
 from app.services.parser import ScoreSummary
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -150,3 +151,51 @@ def test_legacy_parsed_summary_is_returned_when_migration_write_fails(monkeypatc
     assert summary is not None
     assert summary.measure_count == 4
     assert parsed_path.read_bytes() == legacy
+
+
+def test_omr_job_roundtrip_and_cleanup():
+    record = storage.create_omr_job("../scan.pdf", b"%PDF-test")
+
+    assert len(record.job_id) == 32
+    assert record.status == "queued"
+    assert record.source_filename == "scan.pdf"
+    assert storage.omr_job_input_path(record.job_id, record.source_filename).read_bytes() == b"%PDF-test"
+    assert storage.load_omr_job(record.job_id) == record
+
+    failed = storage.update_omr_job(
+        record.job_id,
+        "failed",
+        error=OmrJobError(code="TEST", message="public message"),
+    )
+    assert storage.load_omr_job(record.job_id) == failed
+
+    storage.cleanup_omr_job_input(record.job_id)
+    assert not storage.omr_job_input_path(record.job_id, record.source_filename).exists()
+    assert (storage.omr_job_dir(record.job_id) / "job.json").is_file()
+
+
+def test_omr_job_json_writes_are_atomic_and_leave_no_temporary_file():
+    record = storage.create_omr_job("scan.png", b"png")
+    storage.update_omr_job(record.job_id, "running")
+    storage.update_omr_job(record.job_id, "done", score_id="1" * 32)
+
+    files = {path.name for path in storage.omr_job_dir(record.job_id).iterdir()}
+    assert files == {"input.png", "job.json"}
+    assert storage.load_omr_job(record.job_id).score_id == "1" * 32
+
+
+def test_invalid_omr_job_id_is_rejected():
+    for bad in ("../../etc", "abc", "A" * 32, "0" * 31):
+        with pytest.raises(ValueError):
+            storage.omr_job_dir(bad)
+
+
+def test_corrupt_omr_job_state_is_not_interpreted():
+    record = storage.create_omr_job("scan.jpg", b"jpeg")
+    (storage.omr_job_dir(record.job_id) / "job.json").write_text(
+        '{"status":"done","score_id":"../../etc"}', encoding="utf-8"
+    )
+
+    with pytest.raises(storage.OmrJobDataError):
+        storage.load_omr_job(record.job_id)
+    assert storage.iter_omr_jobs() == []
