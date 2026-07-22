@@ -131,6 +131,11 @@ def validate_custom_ranges(custom_ranges: list[CustomRange] | None) -> None:
     names = [r.instrument for r in custom_ranges]
     if len(names) != len(set(names)):
         raise ValueError("custom_ranges に同じ音色を複数回指定することはできません")
+    starts = [r.range_start_midi for r in custom_ranges]
+    if len(starts) != len(set(starts)):
+        # 同じ境界を複数の音色が持つと、境界以上の音が常に後勝ちで1音色に固定され、
+        # もう一方が事実上選べなくなってしまうため拒否する
+        raise ValueError("custom_ranges に同じ切り替え開始音(range_start_midi)を複数指定することはできません")
     for name in names:
         inst = INSTRUMENTS.get(name)
         if inst is None or inst.is_percussion:

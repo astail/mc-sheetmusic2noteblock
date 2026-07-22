@@ -192,6 +192,17 @@ def test_validate_custom_ranges_rejects_duplicate_instrument():
         validate_custom_ranges(ranges)
 
 
+def test_validate_custom_ranges_rejects_duplicate_range_start():
+    # bass と didgeridoo のデフォルト基準音はどちらも30(instruments.py)なので
+    # 起こりやすい入力。片方が後勝ちで実質選べなくなる回帰を防ぐ
+    ranges = [
+        CustomRange(instrument="bass", range_start_midi=30),
+        CustomRange(instrument="didgeridoo", range_start_midi=30),
+    ]
+    with pytest.raises(ValueError):
+        validate_custom_ranges(ranges)
+
+
 def test_validate_custom_ranges_rejects_percussion_and_unknown_instrument():
     with pytest.raises(ValueError):
         validate_custom_ranges([CustomRange(instrument="basedrum", range_start_midi=30)])
