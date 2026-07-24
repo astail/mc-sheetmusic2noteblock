@@ -19,7 +19,7 @@ from app.services.omr_client import (
     OmrTranscriptionError,
     OmrUnavailableError,
 )
-from app.services.parser import parse_score
+from app.services.parser import parse_score, staff_number_of
 
 router = APIRouter(prefix="/omr", tags=["omr"])
 
@@ -74,14 +74,23 @@ async def _read_upload(file: UploadFile) -> bytes:
     return bytes(content)
 
 
+# MusicXML書き出し時にpart.idは新しく採番され直され、元のstaff情報("...-StaffN")は
+# 失われる。hand_split のトラック名ヒューリスティックで拾えるよう、staff番号を
+# 対応する日本語の手の名前に変換してpartNameへ引き継ぐ
+_HAND_LABEL_BY_STAFF = {1: "右手", 2: "左手"}
+
+
 def _merge_mxl_pages(mxl_contents: list[bytes]) -> bytes:
     """Audiverisが誤って複数ページとして分割した認識結果を、時系列で連結した
-    1つのMusicXML(.mxl)にまとめる。各ページの全パートを、そのまま独立した
-    パートとして直前までのページの合計長だけオフセットして連結する
-    (ページ間でパートの対応関係(右手/左手等)を推定することはしない。
-    hand_split の自動判定・設定パネルでの手動上書きで後から調整できる)。
+    1つのMusicXML(.mxl)にまとめる。各ページの同じ並び順のパート同士(例:
+    どのページも1番目のパートは同じ声部の続き)を1つのパートへ統合し、
+    直前までのページの合計長だけオフセットして連結する。パートを新規作成せず
+    ページ間で同じ並び順のものへ追記していく(1パートしかない単旋律の楽譜が、
+    ページを跨いだだけで別々の手として誤認識されるのを防ぐため。ページごとの
+    パート数が異なる場合の対応関係の推定はしない)。
+    hand_split の自動判定・設定パネルでの手動上書きで後から調整できる。
     """
-    combined = stream.Score()
+    combined_parts: list[stream.Part] = []
     cumulative_offset = 0.0
     with tempfile.TemporaryDirectory(prefix="omr-merge-") as tmp_dir:
         tmp_root = Path(tmp_dir)
@@ -90,12 +99,20 @@ def _merge_mxl_pages(mxl_contents: list[bytes]) -> bytes:
             tmp_path.write_bytes(content)
             page = converter.parse(tmp_path)
             page_parts = list(page.parts) if page.parts else [page]
-            for part in page_parts:
-                new_part = stream.Part()
+            for part_index, part in enumerate(page_parts):
+                if part_index >= len(combined_parts):
+                    new_part = stream.Part()
+                    new_part.partName = _HAND_LABEL_BY_STAFF.get(
+                        staff_number_of(part), part.partName
+                    )
+                    combined_parts.append(new_part)
+                target_part = combined_parts[part_index]
                 for element in part.flatten().notesAndRests:
-                    new_part.insert(cumulative_offset + element.offset, element)
-                combined.insert(0, new_part)
+                    target_part.insert(cumulative_offset + element.offset, element)
             cumulative_offset += float(page.highestTime)
+        combined = stream.Score()
+        for part in combined_parts:
+            combined.insert(0, part)
         out_path = tmp_root / "merged.mxl"
         combined.write("musicxml", fp=out_path)
         return out_path.read_bytes()

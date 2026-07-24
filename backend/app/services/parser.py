@@ -49,7 +49,7 @@ class ParsedScore(BaseModel):
     summary: ScoreSummary
 
 
-def _staff_number_of(part: m21stream.Stream) -> int | None:
+def staff_number_of(part: m21stream.Stream) -> int | None:
     match = _STAFF_ID_RE.search(str(part.id)) if part.id is not None else None
     return int(match.group(1)) if match else None
 
@@ -194,7 +194,7 @@ def parse_score(
     tracks: list[TrackInfo] = []
     for index, part in enumerate(parts):
         part_id = str(part.id) if part.id is not None else f"P{index}"
-        staff_number = _staff_number_of(part)
+        staff_number = staff_number_of(part)
         channel = _channel_of(part)
         is_percussion = channel == 10
         part_events = list(
