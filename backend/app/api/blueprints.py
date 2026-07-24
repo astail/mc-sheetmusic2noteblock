@@ -64,6 +64,7 @@ def create_blueprint(score_id: str, settings: ConversionSettings) -> Blueprint:
             preset=settings.instrument_preset,
             transpose_semitones=settings.transpose_semitones,
             custom_ranges=settings.custom_ranges,
+            single_instrument=settings.single_instrument,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -225,6 +225,32 @@ body {
   width: 5em;
 }
 
+.single-instrument-editor {
+  margin-bottom: 16px;
+}
+
+.single-instrument-note {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.single-instrument-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+  color: var(--color-muted);
+  max-width: 320px;
+}
+
+.single-instrument-editor select {
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 1rem;
+  color: var(--color-text);
+}
+
 .measure-range {
   display: flex;
   align-items: center;

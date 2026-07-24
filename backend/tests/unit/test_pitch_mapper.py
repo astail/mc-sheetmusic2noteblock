@@ -11,7 +11,9 @@ from app.services.pitch_mapper import (
     map_custom,
     map_percussion,
     map_pitch,
+    map_single_instrument,
     validate_custom_ranges,
+    validate_single_instrument,
 )
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -212,3 +214,40 @@ def test_validate_custom_ranges_rejects_percussion_and_unknown_instrument():
 
 def test_validate_custom_ranges_accepts_valid_list():
     validate_custom_ranges([CustomRange(instrument="harp", range_start_midi=54)])
+
+
+def test_single_instrument_melodic_folds_every_note_into_its_own_range():
+    # 完了条件: harp を選べば harp_only と同じ折込結果になる
+    for midi in (21, 30, 53, 54, 60, 78, 79, 102, 108):
+        mapped = map_single_instrument(midi, "harp")
+        assert mapped.instrument == "harp"
+        assert 0 <= mapped.clicks <= 24
+    assert map_single_instrument(21, "harp").octave_shift == 3
+    assert map_single_instrument(108, "harp").octave_shift == -3
+
+
+def test_single_instrument_percussion_pins_every_note_to_base_click():
+    # 打楽器音色を選んだ場合、元の音高(打楽器ノートの percMapPitch も含む)に関わらず
+    # 常にクリック0(音程の概念がないため)
+    for midi in (35, 60, 81, 21, 108):
+        mapped = map_single_instrument(midi, "hat")
+        assert (mapped.instrument, mapped.clicks, mapped.octave_shift) == ("hat", 0, 0)
+
+
+def test_single_instrument_transpose_applied_before_mapping():
+    mapped = map_single_instrument(59, "harp", transpose_semitones=1)  # 59+1=60
+    assert (mapped.instrument, mapped.clicks) == ("harp", 6)
+
+
+def test_validate_single_instrument_rejects_missing_and_unknown():
+    with pytest.raises(ValueError):
+        validate_single_instrument(None)
+    with pytest.raises(ValueError):
+        validate_single_instrument("")
+    with pytest.raises(ValueError):
+        validate_single_instrument("not_a_real_instrument")
+
+
+def test_validate_single_instrument_accepts_percussion_and_melodic():
+    validate_single_instrument("harp")
+    validate_single_instrument("hat")

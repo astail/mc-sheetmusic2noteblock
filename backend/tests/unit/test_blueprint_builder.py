@@ -282,3 +282,40 @@ def test_custom_preset_without_ranges_raises():
     quantized = [_qe(0, midi=60)]
     with pytest.raises(ValueError):
         _build(quantized, ["right"], preset="custom", custom_ranges=None)
+
+
+def test_single_block_preset_unifies_melodic_and_percussion_into_one_instrument():
+    # 完了条件: 打楽器(hand="percussion")も含め全ノートが同じ音色(=同じ下ブロック)になる
+    quantized = [_qe(0, midi=60), _qe(0, midi=38, channel=10)]  # harp想定の音 + snare
+    _, steps, _ = _build(
+        quantized,
+        ["right", "percussion"],
+        preset="single_block",
+        single_instrument="harp",
+    )
+    assert len(steps) == 1
+    instruments = {n.instrument for n in steps[0].notes}
+    assert instruments == {"harp"}
+
+
+def test_single_block_preset_with_percussion_instrument_merges_same_tick_notes():
+    # single_block で打楽器音色を選ぶとクリックは常に0固定になるため、同一tickの
+    # 複数ノートは(instrument, clicks)が一致し既存のdedup機構でマージされ、
+    # merge警告が出る(打楽器音色はどの元ノートでも音程を区別できないため妥当な挙動)
+    quantized = [_qe(0, midi=60), _qe(0, midi=38, channel=10)]
+    _, steps, warnings = _build(
+        quantized,
+        ["right", "percussion"],
+        preset="single_block",
+        single_instrument="hat",
+    )
+    assert len(steps[0].notes) == 1
+    assert steps[0].notes[0].instrument == "hat"
+    assert steps[0].notes[0].clicks == 0
+    assert any(w.type == "merge" for w in warnings)
+
+
+def test_single_block_preset_without_instrument_raises():
+    quantized = [_qe(0, midi=60)]
+    with pytest.raises(ValueError):
+        _build(quantized, ["right"], preset="single_block", single_instrument=None)

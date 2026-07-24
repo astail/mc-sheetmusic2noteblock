@@ -24,6 +24,14 @@ export const MELODIC_INSTRUMENTS = [
   { name: "xylophone", ja: "木琴", blockJa: "骨ブロック", baseMidi: 78 },
 ];
 
+// single_block プリセットが選べる全16音色(旋律13 + 打楽器3。backend/app/services/instruments.py と一致)
+export const ALL_INSTRUMENTS = [
+  ...MELODIC_INSTRUMENTS,
+  { name: "basedrum", ja: "バスドラム(打楽器)", blockJa: "石" },
+  { name: "snare", ja: "スネア(打楽器)", blockJa: "砂" },
+  { name: "hat", ja: "ハット(打楽器)", blockJa: "ガラス" },
+];
+
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 export function noteName(midi) {
@@ -56,6 +64,7 @@ export function collectSettings({
   measureStart,
   measureEnd,
   customRanges,
+  singleInstrument,
 }) {
   const settings = {
     ticks_per_quarter: tpq,
@@ -72,6 +81,9 @@ export function collectSettings({
   }
   if (preset === "custom") {
     settings.custom_ranges = customRanges;
+  }
+  if (preset === "single_block") {
+    settings.single_instrument = singleInstrument;
   }
   return settings;
 }
@@ -92,6 +104,12 @@ export function validateCustomRanges(preset, customRanges) {
   if (new Set(starts).size !== starts.length) {
     return "同じ切り替え開始音(MIDI番号)を複数の音色に指定することはできません。値をずらしてください";
   }
+  return null;
+}
+
+export function validateSingleInstrument(preset, singleInstrument) {
+  if (preset !== "single_block") return null;
+  if (!singleInstrument) return "single_block を選ぶ場合は音色を1つ選択してください";
   return null;
 }
 
@@ -165,6 +183,9 @@ function renderPanel(body, state) {
         </td>
       </tr>`,
   ).join("");
+  const singleInstrumentOptions = ALL_INSTRUMENTS.map(
+    (inst) => `<option value="${inst.name}">${inst.ja} — ${inst.blockJa}</option>`,
+  ).join("");
 
   body.innerHTML = `
     <dl class="summary-list">
@@ -186,6 +207,7 @@ function renderPanel(body, state) {
           <option value="bass_harp_bell">bass_harp_bell(既定)</option>
           <option value="harp_only">harp_only(素材節約)</option>
           <option value="custom">custom(音色ごとに音域を指定)</option>
+          <option value="single_block">single_block(打楽器も含め全ノートを1音色に統一)</option>
         </select>
       </label>
       <label>移調(半音)
@@ -209,6 +231,15 @@ function renderPanel(body, state) {
         <tbody>${customRangeRows}</tbody>
       </table>
     </div>
+    <div id="single-instrument-editor" class="single-instrument-editor" hidden>
+      <p class="single-instrument-note">
+        single_block を選んだ場合、打楽器パートを含む曲中の全ノートが選んだ1音色に
+        統一されます(下に置くブロックが1種類で済みますが、打楽器の音色の違いは失われます)。
+      </p>
+      <label>音色(下に置くブロック)
+        <select id="single-instrument-select">${singleInstrumentOptions}</select>
+      </label>
+    </div>
     <button type="button" id="generate-button" class="generate-button">設計書を生成</button>
     <p id="settings-status" class="upload-status" hidden></p>
   `;
@@ -217,6 +248,7 @@ function renderPanel(body, state) {
   const generateButton = body.querySelector("#generate-button");
   const presetSelect = body.querySelector("#preset-select");
   const customRangesEditor = body.querySelector("#custom-ranges-editor");
+  const singleInstrumentEditor = body.querySelector("#single-instrument-editor");
 
   function showStatus(message, kind) {
     status.hidden = false;
@@ -226,6 +258,7 @@ function renderPanel(body, state) {
 
   presetSelect.addEventListener("change", () => {
     customRangesEditor.hidden = presetSelect.value !== "custom";
+    singleInstrumentEditor.hidden = presetSelect.value !== "single_block";
   });
 
   for (const checkbox of body.querySelectorAll(".custom-range-enable")) {
@@ -268,6 +301,12 @@ function renderPanel(body, state) {
       showStatus(customRangesError, "error");
       return;
     }
+    const singleInstrument = body.querySelector("#single-instrument-select").value;
+    const singleInstrumentError = validateSingleInstrument(preset, singleInstrument);
+    if (singleInstrumentError) {
+      showStatus(singleInstrumentError, "error");
+      return;
+    }
     const settings = collectSettings({
       tpq: Number(body.querySelector("#tpq-select").value),
       preset,
@@ -276,6 +315,7 @@ function renderPanel(body, state) {
       measureStart,
       measureEnd,
       customRanges,
+      singleInstrument,
     });
     const requestedScoreId = state.scoreId;
     showStatus("設計書を生成中…", "busy");

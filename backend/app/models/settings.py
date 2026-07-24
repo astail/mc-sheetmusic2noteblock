@@ -23,8 +23,11 @@ class ConversionSettings(BaseModel):
     mode: Literal["beat", "seconds"] = "beat"
     ticks_per_quarter: Literal[3, 4, 5, 6, 8] = 4  # 実効BPM 200|150|120|100|75
     tempo_scale: float = Field(default=1.0, gt=0, allow_inf_nan=False)  # seconds モード用の倍率
-    instrument_preset: Literal["bass_harp_bell", "harp_only", "custom"] = "bass_harp_bell"
+    instrument_preset: Literal["bass_harp_bell", "harp_only", "custom", "single_block"] = (
+        "bass_harp_bell"
+    )
     custom_ranges: list[CustomRange] | None = None  # custom プリセット用
+    single_instrument: str | None = None  # single_block プリセット用(打楽器音色も指定可)
     transpose_semitones: int = 0
     hand_assignment: dict[str, Literal["right", "left", "ignore"]] | None = None
     measure_range: tuple[int, int] | None = None  # [開始小節, 終了小節] 部分変換
@@ -42,4 +45,12 @@ class ConversionSettings(BaseModel):
     def _custom_ranges_required_for_custom_preset(self) -> "ConversionSettings":
         if self.instrument_preset == "custom" and not self.custom_ranges:
             raise ValueError("instrument_preset='custom' には custom_ranges の指定が必要です")
+        return self
+
+    @model_validator(mode="after")
+    def _single_instrument_required_for_single_block_preset(self) -> "ConversionSettings":
+        if self.instrument_preset == "single_block" and not self.single_instrument:
+            raise ValueError(
+                "instrument_preset='single_block' には single_instrument の指定が必要です"
+            )
         return self

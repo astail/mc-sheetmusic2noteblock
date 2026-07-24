@@ -9,6 +9,10 @@
   ユーザーが選んだ音色ごとに range_start_midi(その音色を使い始める元曲側のMIDI番号)
   で境界を決める。各音色自体の物理的な基準音(clicks=0の実際の音高)は変えられない
   ため、境界で音色を選んだ後、その音色自身の物理レンジへオクターブシフトする。
+プリセット single_block(ConversionSettings.single_instrument):
+  打楽器も含め全ノートを1つの音色(=下に置くブロック1種類)に固定する。選んだ音色が
+  旋律用ならその物理レンジへオクターブ折込し、打楽器用(basedrum/snare/hat)なら
+  基準音(clicks=0)に固定する(打楽器はどのプリセットでも音程の概念を持たない)。
 
 打楽器(GM percussion map の実キー番号 → basedrum/snare/hat の3音色):
   クリック数は音程ではなく打楽器の音色そのものを鳴らすためのものなので、
@@ -172,6 +176,25 @@ def map_custom(
 def map_percussion(midi_pitch: int) -> MappedNote:
     instrument = PERCUSSION_INSTRUMENT_MAP.get(midi_pitch, PERCUSSION_FALLBACK_INSTRUMENT)
     return MappedNote(instrument=instrument, clicks=0, octave_shift=0)
+
+
+def validate_single_instrument(instrument: str | None) -> None:
+    if not instrument:
+        raise ValueError("single_block プリセットには single_instrument の指定が必要です")
+    if instrument not in INSTRUMENTS:
+        raise ValueError(f"single_block に無効な音色が指定されています: {instrument}")
+
+
+def map_single_instrument(
+    midi_pitch: int, instrument: str, transpose_semitones: int = 0
+) -> MappedNote:
+    inst = INSTRUMENTS[instrument]
+    if inst.is_percussion:
+        return MappedNote(instrument=instrument, clicks=0, octave_shift=0)
+    midi, octave_shift = _shift_into_range(
+        midi_pitch + transpose_semitones, inst.base_midi, inst.max_midi
+    )
+    return MappedNote(instrument=instrument, clicks=midi - inst.base_midi, octave_shift=octave_shift)
 
 
 def build_octave_shift_warning(mapped: list[MappedNote]) -> Warning | None:

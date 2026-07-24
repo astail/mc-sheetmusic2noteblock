@@ -162,6 +162,13 @@ def test_custom_range_start_midi_must_be_valid_midi():
     CustomRange(instrument="harp", range_start_midi=127)
 
 
+def test_single_block_preset_requires_single_instrument():
+    with pytest.raises(ValidationError):
+        ConversionSettings(instrument_preset="single_block")
+    settings = ConversionSettings(instrument_preset="single_block", single_instrument="harp")
+    assert settings.single_instrument == "harp"
+
+
 def test_measure_range_must_be_positive_and_ordered():
     for bad_range in ((8, 3), (0, 5), (-2, 3)):
         with pytest.raises(ValidationError):
