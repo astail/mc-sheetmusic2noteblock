@@ -444,9 +444,20 @@ body {
 }
 
 .player-rate,
-.player-solo {
+.player-solo,
+.player-volume {
   font-size: 0.9rem;
   color: var(--color-muted);
+}
+
+.player-volume {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.player-volume #volume-value {
+  min-width: 3em;
 }
 
 /* 再生中の現在ステップハイライト */

@@ -65,6 +65,21 @@ export function normalizedGain(polyphony) {
   return BASE_PEAK_GAIN / Math.max(1, polyphony);
 }
 
+// 波形の波高率(peak/RMS比)の違いにより、同じピーク振幅でも聴感音量が異なる
+// (矩形波はRMS=振幅そのもので、三角波・正弦波よりも聴感で大きく聞こえる)。
+// pluck(三角波、RMS比 1/√3)を基準に、他の波形のRMS比との差分だけ減衰させ
+// 聴感音量を揃える。低音(bass/didgeridoo)が不釣り合いに大きく聞こえる問題への対応
+const TRIANGLE_RMS_RATIO = 1 / Math.sqrt(3);
+const RECIPE_LOUDNESS_COMPENSATION = {
+  pluck: 1,
+  low: TRIANGLE_RMS_RATIO / 1, // 矩形波(RMS比 1)
+  bell: TRIANGLE_RMS_RATIO / (1 / Math.sqrt(2)), // 正弦波近似(RMS比 1/√2)
+};
+
+function loudnessCompensation(recipe) {
+  return RECIPE_LOUDNESS_COMPENSATION[recipe] ?? 1;
+}
+
 // bell 等は減衰(最長2秒)が次ステップ以降の発音と重なりうるため、
 // polyphony によるステップ内正規化だけでは足りない。呼び出し側は
 // playNote の destination の手前にこのノードを挟み、ステップをまたぐ
@@ -114,7 +129,7 @@ function playNoise(audioContext, gainNode, recipe, startTime, peak) {
 // destination は createLimiter() の出力を経由させること(余韻の重なり対策)。
 export function playNote(audioContext, destination, { instrument, midi, startTime, polyphony = 1 }) {
   const recipe = recipeFor(instrument);
-  const peak = normalizedGain(polyphony);
+  const peak = normalizedGain(polyphony) * loudnessCompensation(recipe);
   const gainNode = audioContext.createGain();
   gainNode.gain.setValueAtTime(0, startTime);
   gainNode.connect(destination);

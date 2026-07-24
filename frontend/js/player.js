@@ -11,6 +11,7 @@ const TICK_SECONDS = 0.1;
 const SCHEDULE_AHEAD_SECONDS = 0.1;
 const SCHEDULER_INTERVAL_MS = 25;
 const START_DELAY_SECONDS = 0.1; // 最初のスケジューラ実行前に発音要求が来ないための余裕
+const DEFAULT_VOLUME_PERCENT = 50;
 
 // tick 差と再生速度から発音時刻の差分(秒)を計算する: tick × 0.1s ÷ rate
 export function scheduleTime(tick, rate) {
@@ -31,6 +32,10 @@ export function initPlayer() {
         <option value="left">左手のみ</option>
       </select>
     </label>
+    <label class="player-volume">音量:
+      <input type="range" id="volume-slider" min="0" max="100" step="1" value="${DEFAULT_VOLUME_PERCENT}">
+      <span id="volume-value">${DEFAULT_VOLUME_PERCENT}%</span>
+    </label>
   `;
 
   const playButton = bar.querySelector("#play-button");
@@ -38,6 +43,8 @@ export function initPlayer() {
   const stopButton = bar.querySelector("#stop-button");
   const rateCheckbox = bar.querySelector("#rate-checkbox");
   const soloSelect = bar.querySelector("#solo-select");
+  const volumeSlider = bar.querySelector("#volume-slider");
+  const volumeValue = bar.querySelector("#volume-value");
 
   // 狭い画面で再生バーが折り返して高くなっても本文が隠れないよう、
   // 実測した高さで body の下余白を追従させる
@@ -49,6 +56,7 @@ export function initPlayer() {
 
   let audioContext = null;
   let limiter = null;
+  let masterGain = null;
   let currentStepIndex = 0;
   // 直近に発音したステップを基準に、まだ発音していないステップの時刻を
   // scheduler() のたびにライブな rate() で再計算する(速度変更を即時反映するため)
@@ -64,6 +72,10 @@ export function initPlayer() {
 
   function rate() {
     return rateCheckbox.checked ? 0.5 : 1;
+  }
+
+  function volume() {
+    return Number(volumeSlider.value) / 100;
   }
 
   function visibleNotes(step) {
@@ -146,7 +158,10 @@ export function initPlayer() {
     closePendingTails(); // 前回再生の余韻が残っていれば新しい再生の頭に被らないよう閉じる
     audioContext = new AudioContext();
     limiter = createLimiter(audioContext);
-    limiter.connect(audioContext.destination);
+    masterGain = audioContext.createGain();
+    masterGain.gain.setValueAtTime(volume(), audioContext.currentTime);
+    limiter.connect(masterGain);
+    masterGain.connect(audioContext.destination);
     currentStepIndex = 0;
     // tick 0 を基準に開始する(先頭ステップが曲頭から遅れている場合もこの後の
     // scheduleTime 計算で自然に反映される)
@@ -215,6 +230,11 @@ export function initPlayer() {
   playButton.addEventListener("click", play);
   pauseButton.addEventListener("click", pause);
   stopButton.addEventListener("click", stop);
+  volumeSlider.addEventListener("input", () => {
+    volumeValue.textContent = `${volumeSlider.value}%`;
+    // 再生中でも即座に音量へ反映する(次の再生を待たない)
+    if (masterGain) masterGain.gain.setValueAtTime(volume(), audioContext.currentTime);
+  });
 
   subscribe((state, changed) => {
     if (changed.includes("blueprint")) {
